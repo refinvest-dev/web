@@ -5,9 +5,11 @@
 import { apiFetch } from '@/shared/api/http'
 import type {
   CreateStrategyRequest,
+  DefineStrategyVersionRequest,
   Page,
   StrategyDetail,
   StrategySummary,
+  StrategyVersion,
 } from '../model/types'
 
 export interface ListStrategiesParams {
@@ -38,4 +40,17 @@ export function createStrategy(
     method: 'POST',
     body: JSON.stringify(body),
   })
+}
+
+export function defineStrategyVersion(
+  strategyId: string,
+  body: DefineStrategyVersionRequest,
+): Promise<StrategyVersion> {
+  return apiFetch<StrategyVersion>(
+    `/strategies/${encodeURIComponent(strategyId)}/versions`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+    },
+  )
 }

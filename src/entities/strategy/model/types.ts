@@ -21,15 +21,24 @@ export interface StrategyVersionExit {
   holdingSignalSessions: number
 }
 
-export interface StrategyVersion {
-  id: string
-  strategyId: string
-  createdAt: string
+/** Request body for `POST /strategies/{strategyId}/versions`. */
+export interface DefineStrategyVersionRequest {
   primarySignalAsset: AssetSymbol
   conditions: StrategyCondition[]
   executionAsset: AssetSymbol
   lag: number
   exit: StrategyVersionExit
+}
+
+export interface StrategyVersion {
+  id: string
+  strategyId: string
+  createdAt: string
+  primarySignalAsset: DefineStrategyVersionRequest['primarySignalAsset']
+  conditions: DefineStrategyVersionRequest['conditions']
+  executionAsset: DefineStrategyVersionRequest['executionAsset']
+  lag: DefineStrategyVersionRequest['lag']
+  exit: DefineStrategyVersionRequest['exit']
 }
 
 export interface StrategyDetail extends StrategySummary {

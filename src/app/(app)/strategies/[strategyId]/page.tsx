@@ -1,4 +1,4 @@
-import { StrategyDetailPage } from '@/pages/strategy-detail/ui/strategy-detail-page'
+import { StrategyDetailPage } from '@/screens/strategy-detail/ui/strategy-detail-page'
 
 export default function Page({
   params,

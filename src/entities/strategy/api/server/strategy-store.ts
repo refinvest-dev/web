@@ -1,3 +1,5 @@
+import type { DefineStrategyVersionRequest } from '../../model/types'
+
 /**
  * In-memory stub of the Core public API's Strategy domain.
  *
@@ -147,4 +149,99 @@ export function createStrategy(name: string) {
   }
   store().strategies.push(strategy)
   return toSummary(strategy)
+}
+
+export interface StrategyVersionInputResult {
+  body?: DefineStrategyVersionRequest
+  violations: string[]
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Parses only the structural invariants owned by the Core public API. */
+export function parseStrategyVersionInput(
+  value: unknown,
+): StrategyVersionInputResult {
+  const violations: string[] = []
+  if (!isRecord(value)) {
+    return { violations: ['Request body must be a JSON object.'] }
+  }
+
+  const primarySignalAsset =
+    typeof value.primarySignalAsset === 'string'
+      ? value.primarySignalAsset.trim()
+      : ''
+  const executionAsset =
+    typeof value.executionAsset === 'string' ? value.executionAsset.trim() : ''
+  const conditions = Array.isArray(value.conditions) ? value.conditions : undefined
+  const lag = value.lag
+  const exit = isRecord(value.exit) ? value.exit : undefined
+  const holdingSignalSessions = exit?.holdingSignalSessions
+  const validLag =
+    typeof lag === 'number' && Number.isInteger(lag) && lag >= 0
+      ? lag
+      : undefined
+  const validHoldingSignalSessions =
+    typeof holdingSignalSessions === 'number' &&
+    Number.isInteger(holdingSignalSessions) &&
+    holdingSignalSessions >= 1
+      ? holdingSignalSessions
+      : undefined
+
+  if (!primarySignalAsset) {
+    violations.push('Primary signal asset is required.')
+  }
+  if (!executionAsset) {
+    violations.push('Execution asset is required.')
+  } else if (executionAsset === 'VIX') {
+    violations.push('VIX cannot be used as an execution asset.')
+  }
+  if (!conditions || conditions.length === 0) {
+    violations.push('At least one condition is required.')
+  }
+  if (validLag === undefined) {
+    violations.push('Lag must be a whole number of zero or more sessions.')
+  }
+  if (validHoldingSignalSessions === undefined) {
+    violations.push('Holding period must be at least one signal session.')
+  }
+
+  if (
+    violations.length > 0 ||
+    !conditions ||
+    validLag === undefined ||
+    validHoldingSignalSessions === undefined
+  ) {
+    return { violations }
+  }
+
+  return {
+    violations,
+    body: {
+      primarySignalAsset,
+      conditions,
+      executionAsset,
+      lag: validLag,
+      exit: { holdingSignalSessions: validHoldingSignalSessions },
+    },
+  }
+}
+
+export function createStrategyVersion(
+  strategyId: string,
+  body: DefineStrategyVersionRequest,
+) {
+  const strategy = store().strategies.find((item) => item.id === strategyId)
+  if (!strategy) return null
+
+  const version: StoredVersion = {
+    id: generateId('sv'),
+    strategyId,
+    createdAt: new Date().toISOString(),
+    ...body,
+  }
+  strategy.versions.push(version)
+  return version
 }

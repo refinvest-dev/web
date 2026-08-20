@@ -20,7 +20,7 @@ import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
 import { navItems } from './nav-items'
 
 export function AppSidebar() {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ''
 
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href)

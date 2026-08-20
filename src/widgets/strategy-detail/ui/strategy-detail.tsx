@@ -8,6 +8,7 @@ import { Skeleton } from '@/shared/ui/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -25,6 +26,7 @@ import { ApiError } from '@/shared/api/http'
 import { formatDate } from '@/shared/lib/format'
 import { useStrategyQuery } from '@/entities/strategy/api/queries'
 import { StrategyStatusBadge } from '@/entities/strategy/ui/strategy-status-badge'
+import { CreateStrategyVersionDialog } from '@/features/create-strategy-version/ui/create-strategy-version-dialog'
 import type {
   StrategyDetail as StrategyDetailModel,
   StrategyVersion,
@@ -132,6 +134,7 @@ function StrategyDetailContent({
               {strategy.versions.length}
             </span>
           </h2>
+          <CreateStrategyVersionDialog strategyId={strategy.id} />
         </div>
         {strategy.versions.length > 0 ? (
           <VersionTable versions={strategy.versions} />
@@ -143,9 +146,13 @@ function StrategyDetailContent({
               </EmptyMedia>
               <EmptyTitle>No versions yet</EmptyTitle>
               <EmptyDescription>
-                Strategy version definition and backtesting are coming soon.
+                Define the first version to capture this strategy&apos;s signal
+                and execution rules.
               </EmptyDescription>
             </EmptyHeader>
+            <EmptyContent>
+              <CreateStrategyVersionDialog strategyId={strategy.id} />
+            </EmptyContent>
           </Empty>
         )}
       </section>

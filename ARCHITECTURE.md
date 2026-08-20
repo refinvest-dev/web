@@ -38,7 +38,7 @@ The existing project configuration is the source of truth for exact versions and
 
 src/
 ├── app/
-├── pages/
+├── screens/
 ├── widgets/
 ├── features/
 ├── entities/
@@ -46,7 +46,7 @@ src/
 
 Dependency direction:
 
-app → pages → widgets → features → entities → shared
+app → screens → widgets → features → entities → shared
 
 A lower layer must not import from a higher layer.
 
@@ -70,11 +70,16 @@ Route Handlers may delegate to an entity API implementation for local
 development, but business-specific stores and contract logic belong to the
 relevant entity slice rather than `shared`.
 
-pages
+screens
 
 Page-level composition.
 
-Pages combine widgets/features/entities to form a route-level screen. Keep business logic and large UI sections out of pages.
+Screens combine widgets/features/entities to form a route-level screen. Keep
+business logic and large UI sections out of screens.
+
+`pages` is intentionally named `screens` in this App Router project: Next.js
+reserves `src/pages` for its legacy Pages Router and would otherwise treat FSD
+composition files as routes.
 
 widgets
 
@@ -200,7 +205,7 @@ shared/ui       → generic reusable primitives
 entities        → reusable business-concept UI
 features        → interaction-specific UI and logic
 widgets         → large section composition
-pages           → route-level composition
+screens         → route-level composition
 app             → application setup
 
 Prefer composition over duplication.
