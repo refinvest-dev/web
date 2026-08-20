@@ -62,7 +62,13 @@ routing integration
 
 application-level setup
 
+thin App Router route files and Route Handler adapters
+
 Do not place business features here.
+
+Route Handlers may delegate to an entity API implementation for local
+development, but business-specific stores and contract logic belong to the
+relevant entity slice rather than `shared`.
 
 pages
 
