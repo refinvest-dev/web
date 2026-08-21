@@ -6,6 +6,7 @@ import { ChevronRight, GitBranch } from 'lucide-react'
 import { Card } from '@/shared/ui/card'
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -26,6 +27,7 @@ import {
   type StrategyVersion,
 } from '@/entities/strategy-version/model/types'
 import { StrategyVersionLatestBadge } from '@/entities/strategy-version/ui/strategy-version-latest-badge'
+import { CreateStrategyVersionDialog } from '@/features/create-strategy-version/ui/create-strategy-version-dialog'
 
 /**
  * The Versions analytical section of the Strategy detail experience.
@@ -52,6 +54,7 @@ export function StrategyVersionList({
             {versions.length}
           </span>
         </h2>
+        <CreateStrategyVersionDialog strategyId={strategyId} />
       </div>
 
       {ordered.length > 0 ? (
@@ -68,9 +71,13 @@ export function StrategyVersionList({
             </EmptyMedia>
             <EmptyTitle>No versions yet</EmptyTitle>
             <EmptyDescription>
-              Strategy version definition and backtesting are coming soon.
+              Define the first version to capture this strategy&apos;s signal and
+              execution rules.
             </EmptyDescription>
           </EmptyHeader>
+          <EmptyContent>
+            <CreateStrategyVersionDialog strategyId={strategyId} />
+          </EmptyContent>
         </Empty>
       )}
     </section>

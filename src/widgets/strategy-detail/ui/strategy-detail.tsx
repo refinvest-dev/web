@@ -1,36 +1,24 @@
 'use client'
 
 import Link from 'next/link'
-import { CircleAlert, GitBranch, RotateCw, SearchX } from 'lucide-react'
+import { CircleAlert, RotateCw, SearchX } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Button } from '@/shared/ui/button'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import {
   Empty,
-  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
 } from '@/shared/ui/empty'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/shared/ui/table'
 import { ApiError } from '@/shared/api/http'
 import { formatDate } from '@/shared/lib/format'
 import { useStrategyQuery } from '@/entities/strategy/api/queries'
 import { StrategyStatusBadge } from '@/entities/strategy/ui/strategy-status-badge'
-import { CreateStrategyVersionDialog } from '@/features/create-strategy-version/ui/create-strategy-version-dialog'
-import type {
-  StrategyDetail as StrategyDetailModel,
-  StrategyVersion,
-} from '@/entities/strategy/model/types'
+import { StrategyVersionList } from '@/widgets/strategy-version-list/ui/strategy-version-list'
+import type { StrategyDetail as StrategyDetailModel } from '@/entities/strategy/model/types'
 
 export function StrategyDetail({ strategyId }: { strategyId: string }) {
   const { data, isPending, isError, error, refetch, isFetching } =
@@ -126,84 +114,12 @@ function StrategyDetailContent({
         </CardContent>
       </Card>
 
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold tracking-tight">
-            Versions
-            <span className="ml-2 font-normal text-muted-foreground">
-              {strategy.versions.length}
-            </span>
-          </h2>
-          <CreateStrategyVersionDialog strategyId={strategy.id} />
-        </div>
-        {strategy.versions.length > 0 ? (
-          <VersionTable versions={strategy.versions} />
-        ) : (
-          <Empty className="border">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <GitBranch />
-              </EmptyMedia>
-              <EmptyTitle>No versions yet</EmptyTitle>
-              <EmptyDescription>
-                Define the first version to capture this strategy&apos;s signal
-                and execution rules.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <CreateStrategyVersionDialog strategyId={strategy.id} />
-            </EmptyContent>
-          </Empty>
-        )}
-      </section>
+      <StrategyVersionList
+        strategyId={strategy.id}
+        versions={strategy.versions}
+        latestVersionId={strategy.latestVersionId}
+      />
     </div>
-  )
-}
-
-function VersionTable({ versions }: { versions: StrategyVersion[] }) {
-  return (
-    <Card className="overflow-hidden py-0">
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="pl-6">Version</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead>Primary signal</TableHead>
-              <TableHead>Execution</TableHead>
-              <TableHead className="text-right">Lag</TableHead>
-              <TableHead className="text-right">Hold (sessions)</TableHead>
-              <TableHead className="pr-6 text-right">Conditions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {versions.map((v) => (
-              <TableRow key={v.id} className="border-border">
-                <TableCell className="pl-6 font-mono text-xs">{v.id}</TableCell>
-                <TableCell className="text-sm text-muted-foreground tabular-nums">
-                  {formatDate(v.createdAt)}
-                </TableCell>
-                <TableCell className="font-mono text-sm">
-                  {v.primarySignalAsset}
-                </TableCell>
-                <TableCell className="font-mono text-sm">
-                  {v.executionAsset}
-                </TableCell>
-                <TableCell className="text-right font-mono text-sm tabular-nums">
-                  {v.lag}
-                </TableCell>
-                <TableCell className="text-right font-mono text-sm tabular-nums">
-                  {v.exit.holdingSignalSessions}
-                </TableCell>
-                <TableCell className="pr-6 text-right font-mono text-sm tabular-nums">
-                  {v.conditions.length}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </Card>
   )
 }
 
