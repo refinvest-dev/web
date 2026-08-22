@@ -1,8 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { ChevronRight, CircleAlert, Layers, RotateCw } from 'lucide-react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
+  Layers,
+  RotateCw,
+} from 'lucide-react'
 import { Card } from '@/shared/ui/card'
 import { Button } from '@/shared/ui/button'
 import { Skeleton } from '@/shared/ui/skeleton'
@@ -30,10 +37,34 @@ import { strategyConfigState } from '@/entities/strategy/model/types'
 import { StrategyStatusBadge } from '@/entities/strategy/ui/strategy-status-badge'
 import { CreateStrategyDialog } from '@/features/create-strategy/ui/create-strategy-dialog'
 
+const PAGE_SIZE = 20
+
 export function StrategyList() {
+  return (
+    <Suspense fallback={<StrategyListSkeleton />}>
+      <StrategyListContent />
+    </Suspense>
+  )
+}
+
+function StrategyListContent() {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const page = getPage(searchParams.get('page'))
   const { data, isPending, isError, error, refetch, isFetching } =
-    useStrategiesQuery({ page: 0, size: 50 })
+    useStrategiesQuery({ page, size: PAGE_SIZE })
+
+  const setPage = (nextPage: number) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (nextPage === 0) {
+      params.delete('page')
+    } else {
+      params.set('page', String(nextPage))
+    }
+    const query = params.toString()
+    router.push(query ? `${pathname}?${query}` : pathname)
+  }
 
   if (isPending) return <StrategyListSkeleton />
 
@@ -86,6 +117,9 @@ export function StrategyList() {
   const configuredCount = data.items.filter(
     (s) => strategyConfigState(s) === 'configured',
   ).length
+  const totalPages = Math.ceil(data.total / PAGE_SIZE)
+  const isFirstPage = page === 0
+  const isLastPage = page >= totalPages - 1
 
   return (
     <Card className="overflow-hidden py-0">
@@ -140,12 +174,44 @@ export function StrategyList() {
       <div className="flex items-center justify-between border-t border-border px-6 py-3 text-xs text-muted-foreground">
         <span>
           {data.total} {data.total === 1 ? 'strategy' : 'strategies'} ·{' '}
-          {configuredCount} configured
+          {configuredCount} configured on this page
         </span>
-        {isFetching && <span>Updating…</span>}
+        <div className="flex items-center gap-3">
+          {isFetching && <span aria-live="polite">Updating…</span>}
+          <div className="flex items-center gap-1" aria-label="Pagination">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(page - 1)}
+              disabled={isFirstPage || isFetching}
+            >
+              <ChevronLeft data-icon="inline-start" />
+              Previous
+            </Button>
+            <span className="min-w-20 text-center tabular-nums">
+              Page {page + 1} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(page + 1)}
+              disabled={isLastPage || isFetching}
+            >
+              Next
+              <ChevronRight data-icon="inline-end" />
+            </Button>
+          </div>
+        </div>
       </div>
     </Card>
   )
+}
+
+function getPage(value: string | null): number {
+  if (!value) return 0
+
+  const page = Number(value)
+  return Number.isInteger(page) && page > 0 ? page : 0
 }
 
 function StrategyListSkeleton() {

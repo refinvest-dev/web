@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   getStrategy,
   listStrategies,
@@ -12,6 +12,7 @@ export function useStrategiesQuery(params: ListStrategiesParams = {}) {
   return useQuery({
     queryKey: strategyKeys.list(params),
     queryFn: () => listStrategies(params),
+    placeholderData: keepPreviousData,
   })
 }
 

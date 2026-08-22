@@ -43,6 +43,29 @@ function seed(): StrategyStore {
   const now = Date.now()
   const iso = (offsetDays: number) =>
     new Date(now - offsetDays * 86_400_000).toISOString()
+  const additionalStrategies = [
+    ['AAPL Mean Reversion', 'AAPL'],
+    ['SPY Opening Range', 'SPY'],
+    ['IWM Trend Breakout', 'IWM'],
+    ['NVDA Earnings Drift', 'NVDA'],
+    ['TLT Duration Rotation', 'TLT'],
+    ['GLD Risk Hedge', 'GLD'],
+    ['MSFT Quality Momentum', 'MSFT'],
+    ['AMZN Volume Expansion', 'AMZN'],
+    ['META Relative Strength', 'META'],
+    ['XLE Sector Rotation', 'XLE'],
+    ['SMH Trend Following', 'SMH'],
+    ['DIA Defensive Allocation', 'DIA'],
+    ['GOOGL Gap Continuation', 'GOOGL'],
+    ['XLF Financials Breadth', 'XLF'],
+    ['EEM Emerging Markets Trend', 'EEM'],
+    ['ARKK Volatility Breakout', 'ARKK'],
+    ['AMD Pullback Entry', 'AMD'],
+    ['XLV Healthcare Momentum', 'XLV'],
+    ['COIN Crypto Equity Filter', 'COIN'],
+    ['USO Oil Trend Reversal', 'USO'],
+    ['TSLA Range Expansion', 'TSLA'],
+  ] as const
 
   return {
     strategies: [
@@ -86,6 +109,31 @@ function seed(): StrategyStore {
         createdAt: iso(2),
         versions: [],
       },
+      ...additionalStrategies.map(([name, asset], index) => {
+        const id = `str_seed_${String(index + 1).padStart(2, '0')}`
+        const createdAtOffset = index + 3
+        const isDraft = index % 4 === 0
+
+        return {
+          id,
+          name,
+          createdAt: iso(createdAtOffset),
+          versions: isDraft
+            ? []
+            : [
+                {
+                  id: `sv_seed_${String(index + 1).padStart(2, '0')}`,
+                  strategyId: id,
+                  createdAt: iso(createdAtOffset - 1),
+                  primarySignalAsset: asset,
+                  conditions: [{ kind: 'mock-signal' }],
+                  executionAsset: asset,
+                  lag: index % 2,
+                  exit: { holdingSignalSessions: 3 + (index % 5) },
+                },
+              ],
+        }
+      }),
     ],
   }
 }
