@@ -70,6 +70,8 @@ function validateForm({
   conditionWindow,
   conditionOperator,
   conditionThreshold,
+  secondCondition,
+  logicalCombinator,
   lag,
   holdingSignalSessions,
 }: {
@@ -80,6 +82,14 @@ function validateForm({
   conditionWindow: string
   conditionOperator: ComparisonOperator
   conditionThreshold: string
+  secondCondition: {
+    asset: string
+    metric: ConditionMetric
+    window: string
+    operator: ComparisonOperator
+    threshold: string
+  } | null
+  logicalCombinator: 'AND' | 'OR'
   lag: string
   holdingSignalSessions: string
 }): {
@@ -124,6 +134,27 @@ function validateForm({
     operandB: parsedThreshold,
   }]
 
+  if (secondCondition) {
+    const secondWindow = Number(secondCondition.window)
+    const secondThreshold = Number(secondCondition.threshold)
+    if (!secondCondition.asset) errors.conditions = 'Choose the Asset for condition 2.'
+    if (secondCondition.metric !== 'SIMPLE' && (!Number.isInteger(secondWindow) || secondWindow < 1)) {
+      errors.conditions = 'Condition 2 requires a whole-number window of at least 1.'
+    }
+    if (!Number.isFinite(secondThreshold)) errors.conditions = 'Condition 2 requires a numeric threshold.'
+    if (Object.keys(errors).length > 0) return { errors }
+    conditions.push({
+      logicalCombinator,
+      operator: secondCondition.operator,
+      operandA: {
+        asset: secondCondition.asset,
+        metric: secondCondition.metric,
+        window: secondCondition.metric === 'SIMPLE' ? null : secondWindow,
+      },
+      operandB: secondThreshold,
+    })
+  }
+
   return {
     errors,
     body: {
@@ -148,6 +179,14 @@ export function CreateStrategyVersionDialog({
   const [conditionWindow, setConditionWindow] = useState('1')
   const [conditionOperator, setConditionOperator] = useState<ComparisonOperator>('GT')
   const [conditionThreshold, setConditionThreshold] = useState('')
+  const [secondCondition, setSecondCondition] = useState<{
+    asset: string
+    metric: ConditionMetric
+    window: string
+    operator: ComparisonOperator
+    threshold: string
+  } | null>(null)
+  const [logicalCombinator, setLogicalCombinator] = useState<'AND' | 'OR'>('AND')
   const [lag, setLag] = useState('0')
   const [holdingSignalSessions, setHoldingSignalSessions] = useState('1')
   const [errors, setErrors] = useState<FormErrors>({})
@@ -164,6 +203,8 @@ export function CreateStrategyVersionDialog({
         conditionWindow,
         conditionOperator,
         conditionThreshold,
+        secondCondition,
+        logicalCombinator,
         lag,
         holdingSignalSessions,
       }).body ?? null,
@@ -173,6 +214,8 @@ export function CreateStrategyVersionDialog({
       conditionWindow,
       conditionOperator,
       conditionThreshold,
+      secondCondition,
+      logicalCombinator,
       executionAsset,
       holdingSignalSessions,
       lag,
@@ -200,6 +243,8 @@ export function CreateStrategyVersionDialog({
     setConditionWindow('1')
     setConditionOperator('GT')
     setConditionThreshold('')
+    setSecondCondition(null)
+    setLogicalCombinator('AND')
     setLag('0')
     setHoldingSignalSessions('1')
     setErrors({})
@@ -221,6 +266,8 @@ export function CreateStrategyVersionDialog({
       conditionWindow,
       conditionOperator,
       conditionThreshold,
+      secondCondition,
+      logicalCombinator,
       lag,
       holdingSignalSessions,
     })
@@ -419,6 +466,62 @@ export function CreateStrategyVersionDialog({
                 </FieldDescription>
               )}
             </Field>
+
+            {secondCondition ? (
+              <Field data-invalid={errors.conditions ? true : undefined}>
+                <div className="flex items-center justify-between gap-3">
+                  <FieldLabel>Condition 2</FieldLabel>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => setSecondCondition(null)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                <Select value={logicalCombinator} onValueChange={(value) => {
+                  if (value === 'AND' || value === 'OR') setLogicalCombinator(value)
+                }} disabled={isPending}>
+                  <SelectTrigger aria-label="Combine conditions with" className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="AND">AND</SelectItem><SelectItem value="OR">OR</SelectItem></SelectContent>
+                </Select>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Select value={secondCondition.asset} onValueChange={(value) => setSecondCondition({ ...secondCondition, asset: value ?? '' })} disabled={isPending || assetsQuery.isPending || assetsQuery.isError}>
+                    <SelectTrigger aria-label="Condition 2 asset" className="w-full"><SelectValue placeholder="Asset" /></SelectTrigger>
+                    <SelectContent>{assets.map((asset) => <SelectItem key={asset.symbol} value={asset.symbol}>{asset.symbol}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Select value={secondCondition.metric} onValueChange={(value) => {
+                    if (isConditionMetric(value)) setSecondCondition({ ...secondCondition, metric: value })
+                  }} disabled={isPending}>
+                    <SelectTrigger aria-label="Condition 2 metric" className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="SIMPLE">Simple</SelectItem><SelectItem value="RETURN">Lookback return</SelectItem><SelectItem value="CHANGE">Change</SelectItem></SelectContent>
+                  </Select>
+                  <Select value={secondCondition.operator} onValueChange={(value) => {
+                    if (isComparisonOperator(value)) setSecondCondition({ ...secondCondition, operator: value })
+                  }} disabled={isPending}>
+                    <SelectTrigger aria-label="Condition 2 comparison" className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="GT">Greater than</SelectItem><SelectItem value="GTE">At least</SelectItem><SelectItem value="LT">Less than</SelectItem><SelectItem value="LTE">At most</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {secondCondition.metric !== 'SIMPLE' && <Input aria-label="Condition 2 window in sessions" type="number" min="1" step="1" inputMode="numeric" value={secondCondition.window} disabled={isPending} onChange={(event) => setSecondCondition({ ...secondCondition, window: event.target.value })} placeholder="Window (sessions)" />}
+                  <Input aria-label="Condition 2 threshold" type="number" step="any" inputMode="decimal" value={secondCondition.threshold} disabled={isPending} onChange={(event) => setSecondCondition({ ...secondCondition, threshold: event.target.value })} placeholder="Threshold (e.g. 0.1)" className={secondCondition.metric === 'SIMPLE' ? 'sm:col-span-2' : undefined} />
+                </div>
+              </Field>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                disabled={isPending}
+                onClick={() => setSecondCondition({ asset: '', metric: 'SIMPLE', window: '1', operator: 'GT', threshold: '' })}
+              >
+                <Plus data-icon="inline-start" />
+                Add condition
+              </Button>
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field data-invalid={errors.lag ? true : undefined}>
