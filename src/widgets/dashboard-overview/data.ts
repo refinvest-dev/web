@@ -31,15 +31,6 @@ export interface StrategySummary {
   trades: number
 }
 
-export interface BacktestSummary {
-  id: string
-  name: string
-  cagr: number
-  sharpe: number
-  maxDrawdown: number
-  runAt: string
-}
-
 export const portfolioSummary = {
   equity: 128450.32,
   equityDeltaPct: 4.82,
@@ -173,32 +164,5 @@ export const strategySummaries: StrategySummary[] = [
     pnl: -861.13,
     winRate: 46.4,
     trades: 97,
-  },
-]
-
-export const backtestSummaries: BacktestSummary[] = [
-  {
-    id: 'b-1',
-    name: 'Momentum v3 · SPX universe',
-    cagr: 24.6,
-    sharpe: 1.81,
-    maxDrawdown: -12.4,
-    runAt: '2024-12-15T09:00:00Z',
-  },
-  {
-    id: 'b-2',
-    name: 'Mean Reversion · liquid tech',
-    cagr: 15.2,
-    sharpe: 1.34,
-    maxDrawdown: -9.1,
-    runAt: '2024-12-12T11:20:00Z',
-  },
-  {
-    id: 'b-3',
-    name: 'Trend Following · futures',
-    cagr: 18.9,
-    sharpe: 1.05,
-    maxDrawdown: -21.7,
-    runAt: '2024-12-09T08:45:00Z',
   },
 ]
