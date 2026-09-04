@@ -51,16 +51,35 @@ interface FormErrors {
   holdingSignalSessions?: string
 }
 
+type ConditionMetric = 'SIMPLE' | 'RETURN' | 'CHANGE'
+type ComparisonOperator = 'LT' | 'GT' | 'LTE' | 'GTE'
+
+function isConditionMetric(value: string | null): value is ConditionMetric {
+  return value === 'SIMPLE' || value === 'RETURN' || value === 'CHANGE'
+}
+
+function isComparisonOperator(value: string | null): value is ComparisonOperator {
+  return value === 'LT' || value === 'GT' || value === 'LTE' || value === 'GTE'
+}
+
 function validateForm({
   primarySignalAsset,
   executionAsset,
-  conditionsJson,
+  conditionAsset,
+  conditionMetric,
+  conditionWindow,
+  conditionOperator,
+  conditionThreshold,
   lag,
   holdingSignalSessions,
 }: {
   primarySignalAsset: string
   executionAsset: string
-  conditionsJson: string
+  conditionAsset: string
+  conditionMetric: ConditionMetric
+  conditionWindow: string
+  conditionOperator: ComparisonOperator
+  conditionThreshold: string
   lag: string
   holdingSignalSessions: string
 }): {
@@ -83,19 +102,27 @@ function validateForm({
       'Holding period must be at least one signal session.'
   }
 
-  let conditions: StrategyCondition[] | undefined
-  try {
-    const parsed: unknown = JSON.parse(conditionsJson)
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      errors.conditions = 'Enter a non-empty JSON array of conditions.'
-    } else {
-      conditions = parsed
-    }
-  } catch {
-    errors.conditions = 'Conditions must be valid JSON.'
+  const parsedWindow = Number(conditionWindow)
+  const parsedThreshold = Number(conditionThreshold)
+  if (!conditionAsset) errors.conditions = 'Choose the Asset for this condition.'
+  if (conditionMetric !== 'SIMPLE' && (!Number.isInteger(parsedWindow) || parsedWindow < 1)) {
+    errors.conditions = 'Lookback and change conditions require a whole-number window of at least 1.'
+  }
+  if (!Number.isFinite(parsedThreshold)) {
+    errors.conditions = 'Enter a numeric threshold.'
   }
 
-  if (Object.keys(errors).length > 0 || !conditions) return { errors }
+  if (Object.keys(errors).length > 0) return { errors }
+
+  const conditions: StrategyCondition[] = [{
+    operator: conditionOperator,
+    operandA: {
+      asset: conditionAsset,
+      metric: conditionMetric,
+      window: conditionMetric === 'SIMPLE' ? null : parsedWindow,
+    },
+    operandB: parsedThreshold,
+  }]
 
   return {
     errors,
@@ -116,7 +143,11 @@ export function CreateStrategyVersionDialog({
   const [open, setOpen] = useState(false)
   const [primarySignalAsset, setPrimarySignalAsset] = useState('')
   const [executionAsset, setExecutionAsset] = useState('')
-  const [conditionsJson, setConditionsJson] = useState('[]')
+  const [conditionAsset, setConditionAsset] = useState('')
+  const [conditionMetric, setConditionMetric] = useState<ConditionMetric>('SIMPLE')
+  const [conditionWindow, setConditionWindow] = useState('1')
+  const [conditionOperator, setConditionOperator] = useState<ComparisonOperator>('GT')
+  const [conditionThreshold, setConditionThreshold] = useState('')
   const [lag, setLag] = useState('0')
   const [holdingSignalSessions, setHoldingSignalSessions] = useState('1')
   const [errors, setErrors] = useState<FormErrors>({})
@@ -128,12 +159,20 @@ export function CreateStrategyVersionDialog({
       validateForm({
         primarySignalAsset,
         executionAsset,
-        conditionsJson,
+        conditionAsset,
+        conditionMetric,
+        conditionWindow,
+        conditionOperator,
+        conditionThreshold,
         lag,
         holdingSignalSessions,
       }).body ?? null,
     [
-      conditionsJson,
+      conditionAsset,
+      conditionMetric,
+      conditionWindow,
+      conditionOperator,
+      conditionThreshold,
       executionAsset,
       holdingSignalSessions,
       lag,
@@ -156,7 +195,11 @@ export function CreateStrategyVersionDialog({
   function resetForm() {
     setPrimarySignalAsset('')
     setExecutionAsset('')
-    setConditionsJson('[]')
+    setConditionAsset('')
+    setConditionMetric('SIMPLE')
+    setConditionWindow('1')
+    setConditionOperator('GT')
+    setConditionThreshold('')
     setLag('0')
     setHoldingSignalSessions('1')
     setErrors({})
@@ -173,7 +216,11 @@ export function CreateStrategyVersionDialog({
     const result = validateForm({
       primarySignalAsset,
       executionAsset,
-      conditionsJson,
+      conditionAsset,
+      conditionMetric,
+      conditionWindow,
+      conditionOperator,
+      conditionThreshold,
       lag,
       holdingSignalSessions,
     })
@@ -286,22 +333,89 @@ export function CreateStrategyVersionDialog({
             ) : null}
 
             <Field data-invalid={errors.conditions ? true : undefined}>
-              <FieldLabel htmlFor="strategy-conditions">Conditions (JSON)</FieldLabel>
-              <textarea
-                id="strategy-conditions"
-                value={conditionsJson}
-                placeholder={'[\n  { ... }\n]'}
-                disabled={isPending}
-                aria-invalid={errors.conditions ? true : undefined}
-                onChange={(event) => setConditionsJson(event.target.value)}
-                className="min-h-28 w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-2 font-mono text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
-              />
+              <FieldLabel>Entry condition</FieldLabel>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Select
+                  value={conditionAsset}
+                  onValueChange={(value) => setConditionAsset(value ?? '')}
+                  disabled={isPending || assetsQuery.isPending || assetsQuery.isError}
+                >
+                  <SelectTrigger aria-label="Condition asset" className="w-full">
+                    <SelectValue placeholder="Asset" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assets.map((asset) => (
+                      <SelectItem key={asset.symbol} value={asset.symbol}>
+                        {asset.symbol}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={conditionMetric}
+                  onValueChange={(value) => {
+                    if (isConditionMetric(value)) setConditionMetric(value)
+                  }}
+                  disabled={isPending}
+                >
+                  <SelectTrigger aria-label="Condition metric" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SIMPLE">Simple</SelectItem>
+                    <SelectItem value="RETURN">Lookback return</SelectItem>
+                    <SelectItem value="CHANGE">Change</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={conditionOperator}
+                  onValueChange={(value) => {
+                    if (isComparisonOperator(value)) setConditionOperator(value)
+                  }}
+                  disabled={isPending}
+                >
+                  <SelectTrigger aria-label="Condition comparison" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GT">Greater than</SelectItem>
+                    <SelectItem value="GTE">At least</SelectItem>
+                    <SelectItem value="LT">Less than</SelectItem>
+                    <SelectItem value="LTE">At most</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {conditionMetric !== 'SIMPLE' && (
+                  <Input
+                    aria-label="Condition window in sessions"
+                    type="number"
+                    min="1"
+                    step="1"
+                    inputMode="numeric"
+                    value={conditionWindow}
+                    disabled={isPending}
+                    onChange={(event) => setConditionWindow(event.target.value)}
+                    placeholder="Window (sessions)"
+                  />
+                )}
+                <Input
+                  aria-label="Condition threshold"
+                  type="number"
+                  step="any"
+                  inputMode="decimal"
+                  value={conditionThreshold}
+                  disabled={isPending}
+                  onChange={(event) => setConditionThreshold(event.target.value)}
+                  placeholder="Threshold (e.g. 0.1)"
+                  className={conditionMetric === 'SIMPLE' ? 'sm:col-span-2' : undefined}
+                />
+              </div>
               {errors.conditions ? (
                 <FieldError>{errors.conditions}</FieldError>
               ) : (
                 <FieldDescription>
-                  Enter a non-empty JSON array matching the Compute condition
-                  schema.
+                  Simple compares the current value. Lookback return and change use a positive session window.
                 </FieldDescription>
               )}
             </Field>
