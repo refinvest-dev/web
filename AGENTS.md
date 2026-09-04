@@ -447,3 +447,14 @@ Before reporting completion:
 - ensure type errors are resolved
 - ensure lint/typecheck/tests/build have been run when available
 - report any unresolved backend/API limitation explicitly
+
+## 18. Cross-repository integration
+
+- `../../context`는 ADR과 OpenAPI 계약의 정본이다. Web API 변경 전에는 context의
+  `openapi/core-api.yaml`을 먼저 확인하고, Web에 복제한 계약을 임의로 확장하지 않는다.
+- `../../integration`은 Web의 runtime dependency나 Git submodule이 아닌, sibling checkout을
+  조립해 검증하는 local E2E harness다. Web source tree와 package dependency에 포함하지 않는다.
+- Core API 연동 변경은 integration이 준비한 Core 환경에서 browser acceptance 또는 API smoke
+  결과를 확인한다. Web은 계속 Core API만 호출하며 Compute API를 직접 호출하지 않는다.
+- integration harness의 기동 절차·환경 변수·실행 증적은 `../../integration/README.md`와
+  `../../integration/AGENTS.md`를 정본으로 하며, 이 파일에는 중복해서 관리하지 않는다.
