@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { CircleAlert, GitBranch, RotateCw, SearchX } from 'lucide-react'
+import { useState } from 'react'
+import { CircleAlert, GitBranch, Loader2, RotateCw, SearchX } from 'lucide-react'
 import { ApiError } from '@/shared/api/http'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
@@ -15,9 +16,13 @@ import {
 } from '@/shared/ui/empty'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { formatDate } from '@/shared/lib/format'
+import type { BacktestRunStatus } from '@/entities/backtest/model/types'
 import { useStrategyVersionQuery } from '@/entities/strategy-version/api/queries'
+import type { StrategyVersion } from '@/entities/strategy/model/types'
 import { StrategyVersionLatestBadge } from '@/entities/strategy-version/ui/strategy-version-latest-badge'
 import { StrategyVersionDefinition } from '@/entities/strategy-version/ui/strategy-version-definition'
+import { useBacktestRunQuery } from '@/entities/backtest/api/queries'
+import { RunBacktestDialog } from '@/features/run-backtest/ui/run-backtest-dialog'
 
 export function StrategyVersionDetail({
   strategyId,
@@ -86,39 +91,118 @@ export function StrategyVersionDetail({
   }
 
   return (
+    <StrategyVersionDetailContent
+      strategyId={data.strategyId}
+      strategyName={data.strategyName}
+      version={data.version}
+      isLatest={data.isLatest}
+    />
+  )
+}
+
+function StrategyVersionDetailContent({
+  strategyId,
+  strategyName,
+  version,
+  isLatest,
+}: {
+  strategyId: string
+  strategyName: string
+  version: StrategyVersion | null
+  isLatest: boolean
+}) {
+  const [runId, setRunId] = useState<string | null>(null)
+  const runQuery = useBacktestRunQuery(runId)
+
+  if (!version) return null
+
+  return (
     <div className="flex flex-col gap-4">
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 flex-col gap-1">
               <span className="text-xs font-medium text-muted-foreground">
-                {data.strategyName}
+                {strategyName}
               </span>
-              <CardTitle className="font-mono text-lg">{data.version.id}</CardTitle>
+              <CardTitle className="font-mono text-lg">{version.id}</CardTitle>
             </div>
-            {data.isLatest && <StrategyVersionLatestBadge />}
+            <div className="flex items-center gap-2">
+              {isLatest && <StrategyVersionLatestBadge />}
+              <RunBacktestDialog strategyVersionId={version.id} onAccepted={setRunId} />
+            </div>
           </div>
         </CardHeader>
         <CardContent>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-            <Detail label="Created">{formatDate(data.version.createdAt)}</Detail>
-            <Detail label="Conditions">{data.version.conditions.length}</Detail>
+            <Detail label="Created">{formatDate(version.createdAt)}</Detail>
+            <Detail label="Conditions">{version.conditions.length}</Detail>
             <Detail label="Strategy ID">
-              <span className="font-mono text-xs">{data.strategyId}</span>
+              <span className="font-mono text-xs">{strategyId}</span>
             </Detail>
           </dl>
         </CardContent>
       </Card>
+
+      {runId && (
+        <BacktestRunStatus
+          runId={runId}
+          status={runQuery.data?.status}
+          isError={runQuery.isError}
+        />
+      )}
 
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Definition</CardTitle>
         </CardHeader>
         <CardContent>
-          <StrategyVersionDefinition version={data.version} />
+          <StrategyVersionDefinition version={version} />
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function BacktestRunStatus({
+  runId,
+  status,
+  isError,
+}: {
+  runId: string
+  status: BacktestRunStatus | undefined
+  isError: boolean
+}) {
+  if (isError) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Couldn&apos;t check backtest status</AlertTitle>
+        <AlertDescription>
+          The run was accepted, but its current status could not be loaded.
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  return (
+    <Alert variant={status === 'FAILED' ? 'destructive' : 'default'}>
+      {status === 'PENDING' || status === 'RUNNING' ? (
+        <Loader2 className="animate-spin" />
+      ) : null}
+      <AlertTitle>
+        {status === 'COMPLETED'
+          ? 'Backtest completed'
+          : status === 'FAILED'
+            ? 'Backtest failed'
+            : 'Backtest queued'}
+      </AlertTitle>
+      <AlertDescription>
+        <span className="font-mono text-xs">{runId}</span>
+        {status === 'PENDING' || status === 'RUNNING'
+          ? ' — this page checks for updates every few seconds.'
+          : null}
+      </AlertDescription>
+    </Alert>
   )
 }
 

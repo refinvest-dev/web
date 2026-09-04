@@ -13,6 +13,39 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? '/api'
 
+function csrfTokenFromCookie(): string | null {
+  if (typeof document === 'undefined') return null
+  const prefix = 'XSRF-TOKEN='
+  const entry = document.cookie
+    .split('; ')
+    .find((cookie) => cookie.startsWith(prefix))
+  return entry ? decodeURIComponent(entry.slice(prefix.length)) : null
+}
+
+async function ensureCsrfToken(): Promise<string> {
+  const currentToken = csrfTokenFromCookie()
+  if (currentToken) return currentToken
+
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE_URL}/auth/csrf`, {
+      credentials: 'include',
+    })
+  } catch {
+    throw new ApiError('Network error — could not prepare the request.', 0)
+  }
+
+  if (!response.ok) {
+    throw new ApiError('Could not prepare the request. Please try again.', response.status)
+  }
+
+  const issuedToken = csrfTokenFromCookie()
+  if (!issuedToken) {
+    throw new ApiError('Could not prepare the request. Please refresh and try again.', 0)
+  }
+  return issuedToken
+}
+
 /** Normalized error thrown for any non-2xx response. */
 export class ApiError extends Error {
   readonly status: number
@@ -31,12 +64,20 @@ export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase()
+  const csrfToken =
+    method === 'GET' || method === 'HEAD' || method === 'OPTIONS'
+      ? null
+      : await ensureCsrfToken()
+
   let res: Response
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {}),
         ...init?.headers,
       },
     })
