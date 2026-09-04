@@ -23,6 +23,14 @@ import {
   FieldLabel,
 } from '@/shared/ui/field'
 import { Input } from '@/shared/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/select'
+import { useAssetsQuery } from '@/entities/asset/api/queries'
 import type {
   DefineStrategyVersionRequest,
   StrategyCondition,
@@ -112,6 +120,9 @@ export function CreateStrategyVersionDialog({
   const [lag, setLag] = useState('0')
   const [holdingSignalSessions, setHoldingSignalSessions] = useState('1')
   const [errors, setErrors] = useState<FormErrors>({})
+  const assetsQuery = useAssetsQuery()
+  const assets = assetsQuery.data?.assets ?? []
+  const executionAssets = assets.filter((asset) => asset.executionEnabled)
   const previewBody = useMemo(
     () =>
       validateForm({
@@ -201,14 +212,26 @@ export function CreateStrategyVersionDialog({
                 <FieldLabel htmlFor="primary-signal-asset">
                   Primary signal asset
                 </FieldLabel>
-                <Input
-                  id="primary-signal-asset"
+                <Select
                   value={primarySignalAsset}
-                  placeholder="e.g. QQQ"
-                  disabled={isPending}
-                  aria-invalid={errors.primarySignalAsset ? true : undefined}
-                  onChange={(event) => setPrimarySignalAsset(event.target.value)}
-                />
+                  onValueChange={(value) => setPrimarySignalAsset(value ?? '')}
+                  disabled={isPending || assetsQuery.isPending || assetsQuery.isError}
+                >
+                  <SelectTrigger
+                    id="primary-signal-asset"
+                    aria-invalid={errors.primarySignalAsset ? true : undefined}
+                    className="w-full"
+                  >
+                    <SelectValue placeholder="Choose an asset" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assets.map((asset) => (
+                      <SelectItem key={asset.symbol} value={asset.symbol}>
+                        {asset.symbol}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {errors.primarySignalAsset && (
                   <FieldError>{errors.primarySignalAsset}</FieldError>
                 )}
@@ -216,19 +239,51 @@ export function CreateStrategyVersionDialog({
 
               <Field data-invalid={errors.executionAsset ? true : undefined}>
                 <FieldLabel htmlFor="execution-asset">Execution asset</FieldLabel>
-                <Input
-                  id="execution-asset"
+                <Select
                   value={executionAsset}
-                  placeholder="e.g. QQQ"
-                  disabled={isPending}
-                  aria-invalid={errors.executionAsset ? true : undefined}
-                  onChange={(event) => setExecutionAsset(event.target.value)}
-                />
+                  onValueChange={(value) => setExecutionAsset(value ?? '')}
+                  disabled={isPending || assetsQuery.isPending || assetsQuery.isError}
+                >
+                  <SelectTrigger
+                    id="execution-asset"
+                    aria-invalid={errors.executionAsset ? true : undefined}
+                    className="w-full"
+                  >
+                    <SelectValue placeholder="Choose an asset" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {executionAssets.map((asset) => (
+                      <SelectItem key={asset.symbol} value={asset.symbol}>
+                        {asset.symbol}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {errors.executionAsset && (
                   <FieldError>{errors.executionAsset}</FieldError>
                 )}
               </Field>
             </div>
+
+            {assetsQuery.isPending ? (
+              <FieldDescription>Loading supported assets…</FieldDescription>
+            ) : assetsQuery.isError ? (
+              <Alert variant="destructive">
+                <AlertTitle>Couldn&apos;t load supported assets</AlertTitle>
+                <AlertDescription>
+                  <p>Please try again before defining this version.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-1 w-fit"
+                    type="button"
+                    onClick={() => assetsQuery.refetch()}
+                  >
+                    Retry
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ) : null}
 
             <Field data-invalid={errors.conditions ? true : undefined}>
               <FieldLabel htmlFor="strategy-conditions">Conditions (JSON)</FieldLabel>
