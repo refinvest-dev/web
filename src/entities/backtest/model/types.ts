@@ -71,9 +71,44 @@ export interface EquityCurvePoint {
   value: number
 }
 
+export interface BacktestTrade {
+  signalTime: string
+  entryTime: string
+  entryPrice: number
+  exitTime: string
+  exitPrice: number
+  returnPct: number
+  holdingPeriod: number
+}
+
+export interface BuyAndHoldResult {
+  totalReturn?: number
+  cagr?: number
+  mdd?: number
+}
+
+export interface SignalExecutionDelay {
+  median: number
+  max: number
+  distribution: number[]
+}
+
+export interface DataIntegrityStatus {
+  datasetSnapshotId: string
+  corporateActionsApplied: boolean
+  pointInTimeValidationPassed: boolean
+}
+
 export interface BacktestResult {
   backtestRunId: string
   metrics: BacktestMetrics
   equityCurve: EquityCurvePoint[]
+  trades: BacktestTrade[]
+  benchmark: {
+    primary: BuyAndHoldResult
+    secondaryReference?: BuyAndHoldResult | null
+  }
+  signalExecutionDelay: SignalExecutionDelay
   sampleSizeWarning: 'NONE' | 'LOW' | 'ZERO'
+  dataIntegrityStatus: DataIntegrityStatus
 }

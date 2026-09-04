@@ -16,7 +16,8 @@ import {
 } from '@/shared/ui/empty'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { formatDate } from '@/shared/lib/format'
-import type { BacktestRunStatus } from '@/entities/backtest/model/types'
+import type { BacktestRunDetail } from '@/entities/backtest/model/types'
+import { BacktestResultOverview } from '@/entities/backtest/ui/backtest-result-overview'
 import { useStrategyVersionQuery } from '@/entities/strategy-version/api/queries'
 import type { StrategyVersion } from '@/entities/strategy/model/types'
 import { StrategyVersionLatestBadge } from '@/entities/strategy-version/ui/strategy-version-latest-badge'
@@ -147,7 +148,7 @@ function StrategyVersionDetailContent({
       {runId && (
         <BacktestRunStatus
           runId={runId}
-          status={runQuery.data?.status}
+          run={runQuery.data}
           isError={runQuery.isError}
         />
       )}
@@ -166,11 +167,11 @@ function StrategyVersionDetailContent({
 
 function BacktestRunStatus({
   runId,
-  status,
+  run,
   isError,
 }: {
   runId: string
-  status: BacktestRunStatus | undefined
+  run: BacktestRunDetail | undefined
   isError: boolean
 }) {
   if (isError) {
@@ -185,24 +186,32 @@ function BacktestRunStatus({
   }
 
   return (
-    <Alert variant={status === 'FAILED' ? 'destructive' : 'default'}>
-      {status === 'PENDING' || status === 'RUNNING' ? (
+    <>
+    <Alert variant={run?.status === 'FAILED' ? 'destructive' : 'default'}>
+      {run?.status === 'PENDING' || run?.status === 'RUNNING' ? (
         <Loader2 className="animate-spin" />
       ) : null}
       <AlertTitle>
-        {status === 'COMPLETED'
+        {run?.status === 'COMPLETED'
           ? 'Backtest completed'
-          : status === 'FAILED'
+          : run?.status === 'FAILED'
             ? 'Backtest failed'
             : 'Backtest queued'}
       </AlertTitle>
       <AlertDescription>
         <span className="font-mono text-xs">{runId}</span>
-        {status === 'PENDING' || status === 'RUNNING'
+        {run?.status === 'FAILED' && run.failureReason
+          ? ` — ${run.failureReason}`
+          : null}
+        {run?.status === 'PENDING' || run?.status === 'RUNNING'
           ? ' — this page checks for updates every few seconds.'
           : null}
       </AlertDescription>
     </Alert>
+    {run?.status === 'COMPLETED' && run.result && (
+      <BacktestResultOverview result={run.result} />
+    )}
+    </>
   )
 }
 
