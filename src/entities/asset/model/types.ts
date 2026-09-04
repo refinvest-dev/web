@@ -26,3 +26,17 @@ export interface AssetAvailability {
   datasetSnapshotId: string
   snapshotCreatedAt: string
 }
+
+export type SeriesMetric = 'PRICE' | 'RETURN' | 'NORMALIZED'
+
+export interface AssetSeries {
+  symbol: string
+  points: Array<{ date: string; value: number }>
+}
+
+export interface SeriesResponse {
+  datasetSnapshotId: string
+  snapshotCreatedAt: string
+  adjustmentPolicy: string
+  series: AssetSeries[]
+}
