@@ -23,6 +23,7 @@ import {
   FieldLabel,
 } from '@/shared/ui/field'
 import { Input } from '@/shared/ui/input'
+import { useAssetAvailabilityQuery } from '@/entities/asset/api/queries'
 import type { RunBacktestRequest } from '@/entities/backtest/model/types'
 import { useRunBacktest } from '../api/use-run-backtest'
 
@@ -33,11 +34,17 @@ interface FormErrors {
   slippage?: string
 }
 
+interface AvailablePeriod {
+  start: string
+  end: string
+}
+
 function validateForm(values: {
   start: string
   end: string
   commission: string
   slippage: string
+  availablePeriod: AvailablePeriod
 }): { errors: FormErrors; body?: RunBacktestRequest } {
   const errors: FormErrors = {}
   const commission = Number(values.commission)
@@ -47,6 +54,12 @@ function validateForm(values: {
   if (!values.end) errors.end = 'Choose an end date.'
   if (values.start && values.end && values.start > values.end) {
     errors.end = 'End date must be on or after the start date.'
+  }
+  if (values.start && values.start < values.availablePeriod.start) {
+    errors.start = `Start date must be on or after ${values.availablePeriod.start}.`
+  }
+  if (values.end && values.end > values.availablePeriod.end) {
+    errors.end = `End date must be on or before ${values.availablePeriod.end}.`
   }
   if (!Number.isFinite(commission) || commission < 0) {
     errors.commission = 'Enter a non-negative decimal ratio.'
@@ -68,9 +81,13 @@ function validateForm(values: {
 
 export function RunBacktestDialog({
   strategyVersionId,
+  primarySignalAsset,
+  executionAsset,
   onAccepted,
 }: {
   strategyVersionId: string
+  primarySignalAsset: string
+  executionAsset: string
   onAccepted: (runId: string) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -79,6 +96,22 @@ export function RunBacktestDialog({
   const [commission, setCommission] = useState('')
   const [slippage, setSlippage] = useState('')
   const [errors, setErrors] = useState<FormErrors>({})
+  const primaryAvailabilityQuery = useAssetAvailabilityQuery(
+    primarySignalAsset,
+    open,
+  )
+  const executionAvailabilityQuery = useAssetAvailabilityQuery(
+    executionAsset,
+    open,
+  )
+  const availablePeriod = getOverlappingPeriod(
+    primaryAvailabilityQuery.data?.dataAvailability,
+    executionAvailabilityQuery.data?.dataAvailability,
+  )
+  const isAvailabilityLoading =
+    primaryAvailabilityQuery.isPending || executionAvailabilityQuery.isPending
+  const isAvailabilityError =
+    primaryAvailabilityQuery.isError || executionAvailabilityQuery.isError
   const { mutate, isPending, error, reset } = useRunBacktest({
     onAccepted: (run) => {
       setOpen(false)
@@ -102,7 +135,14 @@ export function RunBacktestDialog({
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const result = validateForm({ start, end, commission, slippage })
+    if (!availablePeriod) return
+    const result = validateForm({
+      start,
+      end,
+      commission,
+      slippage,
+      availablePeriod,
+    })
     setErrors(result.errors)
     if (!result.body) return
     mutate({ strategyVersionId, body: result.body })
@@ -138,8 +178,10 @@ export function RunBacktestDialog({
                 <Input
                   id="backtest-start"
                   type="date"
+                  min={availablePeriod?.start}
+                  max={availablePeriod?.end}
                   value={start}
-                  disabled={isPending}
+                  disabled={isPending || isAvailabilityLoading || isAvailabilityError || !availablePeriod}
                   aria-invalid={errors.start ? true : undefined}
                   onChange={(event) => setStart(event.target.value)}
                 />
@@ -150,14 +192,50 @@ export function RunBacktestDialog({
                 <Input
                   id="backtest-end"
                   type="date"
+                  min={availablePeriod?.start}
+                  max={availablePeriod?.end}
                   value={end}
-                  disabled={isPending}
+                  disabled={isPending || isAvailabilityLoading || isAvailabilityError || !availablePeriod}
                   aria-invalid={errors.end ? true : undefined}
                   onChange={(event) => setEnd(event.target.value)}
                 />
                 {errors.end && <FieldError>{errors.end}</FieldError>}
               </Field>
             </div>
+
+            {isAvailabilityLoading ? (
+              <FieldDescription>Loading the shared Asset data range…</FieldDescription>
+            ) : isAvailabilityError ? (
+              <Alert variant="destructive">
+                <AlertTitle>Couldn&apos;t load Asset availability</AlertTitle>
+                <AlertDescription>
+                  <p>Please try again before starting this backtest.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    className="mt-1 w-fit"
+                    onClick={() => {
+                      primaryAvailabilityQuery.refetch()
+                      executionAvailabilityQuery.refetch()
+                    }}
+                  >
+                    Retry
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ) : !availablePeriod ? (
+              <Alert variant="destructive">
+                <AlertTitle>No shared data range</AlertTitle>
+                <AlertDescription>
+                  The selected signal and execution Assets do not have an overlapping data range.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <FieldDescription>
+                Available for both Assets: {availablePeriod.start} to {availablePeriod.end}.
+              </FieldDescription>
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field data-invalid={errors.commission ? true : undefined}>
@@ -214,7 +292,10 @@ export function RunBacktestDialog({
             <DialogClose render={<Button variant="outline" type="button" />}>
               Cancel
             </DialogClose>
-            <Button type="submit" disabled={isPending}>
+            <Button
+              type="submit"
+              disabled={isPending || isAvailabilityLoading || isAvailabilityError || !availablePeriod}
+            >
               {isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
               {isPending ? 'Starting…' : 'Start backtest'}
             </Button>
@@ -223,4 +304,20 @@ export function RunBacktestDialog({
       </DialogContent>
     </Dialog>
   )
+}
+
+function getOverlappingPeriod(
+  primary: { firstDate: string; lastDate: string } | undefined,
+  execution: { firstDate: string; lastDate: string } | undefined,
+): AvailablePeriod | null {
+  if (!primary || !execution) return null
+
+  const start = primary.firstDate > execution.firstDate
+    ? primary.firstDate
+    : execution.firstDate
+  const end = primary.lastDate < execution.lastDate
+    ? primary.lastDate
+    : execution.lastDate
+
+  return start <= end ? { start, end } : null
 }

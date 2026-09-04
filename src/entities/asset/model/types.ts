@@ -15,3 +15,14 @@ export interface Asset {
 export interface AssetListResponse {
   assets: Asset[]
 }
+
+export interface AssetAvailability {
+  symbol: string
+  inceptionDate: string
+  dataAvailability: {
+    firstDate: string
+    lastDate: string
+  }
+  datasetSnapshotId: string
+  snapshotCreatedAt: string
+}
