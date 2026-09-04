@@ -130,7 +130,12 @@ function StrategyVersionDetailContent({
             </div>
             <div className="flex items-center gap-2">
               {isLatest && <StrategyVersionLatestBadge />}
-              <RunBacktestDialog strategyVersionId={version.id} onAccepted={setRunId} />
+              <RunBacktestDialog
+                strategyVersionId={version.id}
+                primarySignalAsset={version.primarySignalAsset}
+                executionAsset={version.executionAsset}
+                onAccepted={setRunId}
+              />
             </div>
           </div>
         </CardHeader>

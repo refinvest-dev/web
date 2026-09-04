@@ -1,4 +1,4 @@
-import type { Asset } from '../../model/types'
+import type { Asset, AssetAvailability } from '../../model/types'
 
 /**
  * Local development fixture for the Core `GET /assets` contract.
@@ -15,4 +15,20 @@ const assets: Asset[] = [
 
 export function listAssets() {
   return { assets }
+}
+
+export function getAssetAvailability(symbol: string): AssetAvailability | null {
+  const asset = assets.find((item) => item.symbol === symbol)
+  if (!asset) return null
+
+  return {
+    symbol: asset.symbol,
+    inceptionDate: asset.inceptionDate,
+    dataAvailability: {
+      firstDate: asset.inceptionDate,
+      lastDate: '2026-09-04',
+    },
+    datasetSnapshotId: 'local-asset-fixture',
+    snapshotCreatedAt: '2026-09-04T00:00:00Z',
+  }
 }
