@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useDeferredValue, useMemo, useState } from 'react'
 import { Loader2, Plus } from 'lucide-react'
 import { ApiError } from '@/shared/api/http'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
@@ -28,6 +28,7 @@ import type {
   StrategyCondition,
 } from '@/entities/strategy/model/types'
 import { useCreateStrategyVersion } from '../api/use-create-strategy-version'
+import { useStrategyVersionPreview } from '../api/use-strategy-version-preview'
 
 interface CreateStrategyVersionDialogProps {
   strategyId: string
@@ -111,6 +112,28 @@ export function CreateStrategyVersionDialog({
   const [lag, setLag] = useState('0')
   const [holdingSignalSessions, setHoldingSignalSessions] = useState('1')
   const [errors, setErrors] = useState<FormErrors>({})
+  const previewBody = useMemo(
+    () =>
+      validateForm({
+        primarySignalAsset,
+        executionAsset,
+        conditionsJson,
+        lag,
+        holdingSignalSessions,
+      }).body ?? null,
+    [
+      conditionsJson,
+      executionAsset,
+      holdingSignalSessions,
+      lag,
+      primarySignalAsset,
+    ],
+  )
+  const deferredPreviewBody = useDeferredValue(previewBody)
+  const previewQuery = useStrategyVersionPreview(
+    open ? strategyId : '',
+    open ? deferredPreviewBody : null,
+  )
 
   const { mutate, isPending, error, reset } = useCreateStrategyVersion({
     onCreated: () => {
@@ -265,6 +288,25 @@ export function CreateStrategyVersionDialog({
                 )}
               </Field>
             </div>
+
+            <Field>
+              <FieldLabel>Strategy preview</FieldLabel>
+              <div
+                aria-live="polite"
+                className="min-h-12 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
+              >
+                {previewQuery.isFetching
+                  ? 'Updating preview…'
+                  : previewQuery.data
+                    ? previewQuery.data.previewText
+                    : previewQuery.isError
+                      ? 'Preview is currently unavailable. You can still define the version when the form is valid.'
+                      : 'Complete the required fields to preview this strategy.'}
+              </div>
+              <FieldDescription>
+                The preview is generated from the same definition that will be saved.
+              </FieldDescription>
+            </Field>
 
             {apiErrorMessage && (
               <Alert variant="destructive">

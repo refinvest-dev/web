@@ -12,6 +12,10 @@ import type {
   StrategyVersion,
 } from '../model/types'
 
+export interface StrategyPreviewResponse {
+  previewText: string
+}
+
 export interface ListStrategiesParams {
   page?: number
   size?: number
@@ -48,6 +52,19 @@ export function defineStrategyVersion(
 ): Promise<StrategyVersion> {
   return apiFetch<StrategyVersion>(
     `/strategies/${encodeURIComponent(strategyId)}/versions`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+    },
+  )
+}
+
+export function previewStrategyVersion(
+  strategyId: string,
+  body: DefineStrategyVersionRequest,
+): Promise<StrategyPreviewResponse> {
+  return apiFetch<StrategyPreviewResponse>(
+    `/strategies/${encodeURIComponent(strategyId)}/versions/preview`,
     {
       method: 'POST',
       body: JSON.stringify(body),
