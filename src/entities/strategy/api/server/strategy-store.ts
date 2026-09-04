@@ -199,6 +199,15 @@ export function createStrategy(name: string) {
   return toSummary(strategy)
 }
 
+/** Finds the owning Strategy without exposing the in-memory store itself. */
+export function findStrategyIdByVersion(versionId: string): string | null {
+  return (
+    store().strategies.find((strategy) =>
+      strategy.versions.some((version) => version.id === versionId),
+    )?.id ?? null
+  )
+}
+
 export interface StrategyVersionInputResult {
   body?: DefineStrategyVersionRequest
   violations: string[]
