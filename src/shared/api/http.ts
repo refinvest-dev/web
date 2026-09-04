@@ -49,14 +49,22 @@ async function ensureCsrfToken(): Promise<string> {
 /** Normalized error thrown for any non-2xx response. */
 export class ApiError extends Error {
   readonly status: number
+  /** Present for Core's general `ErrorResponse`. */
+  readonly code?: string
   /** Present for `StrategyVersionValidationError` (domain invariant violations). */
   readonly violations?: string[]
 
-  constructor(message: string, status: number, violations?: string[]) {
+  constructor(
+    message: string,
+    status: number,
+    violations?: string[],
+    code?: string,
+  ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.violations = violations
+    this.code = code
   }
 }
 
@@ -88,17 +96,20 @@ export async function apiFetch<T>(
   if (!res.ok) {
     let message = `Request failed (${res.status}).`
     let violations: string[] | undefined
+    let code: string | undefined
     try {
       const body = (await res.json()) as {
         message?: string
+        code?: string
         violations?: string[]
       }
       if (body?.message) message = body.message
+      if (typeof body?.code === 'string') code = body.code
       if (Array.isArray(body?.violations)) violations = body.violations
     } catch {
       // Non-JSON error body — keep the default message.
     }
-    throw new ApiError(message, res.status, violations)
+    throw new ApiError(message, res.status, violations, code)
   }
 
   if (res.status === 204) return undefined as T
