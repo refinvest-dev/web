@@ -13,6 +13,13 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? '/api'
 
+/** Builds a URL for a Core public API path. */
+export function getApiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`
+}
+
+let refreshPromise: Promise<boolean> | undefined
+
 function csrfTokenFromCookie(): string | null {
   if (typeof document === 'undefined') return null
   const prefix = 'XSRF-TOKEN='
@@ -28,7 +35,7 @@ async function ensureCsrfToken(): Promise<string> {
 
   let response: Response
   try {
-    response = await fetch(`${API_BASE_URL}/auth/csrf`, {
+    response = await fetch(getApiUrl('/auth/csrf'), {
       credentials: 'include',
     })
   } catch {
@@ -68,6 +75,42 @@ export class ApiError extends Error {
   }
 }
 
+async function refreshAccessSession(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = (async () => {
+    try {
+      const csrfToken = await ensureCsrfToken()
+      const response = await fetch(getApiUrl('/auth/refresh'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': csrfToken,
+        },
+      })
+      return response.ok
+    } catch {
+      return false
+    } finally {
+      refreshPromise = undefined
+    }
+  })()
+
+  return refreshPromise
+}
+
+function redirectToLogin() {
+  if (typeof window === 'undefined' || window.location.pathname === '/login') return
+
+  const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  window.location.assign(`/login?returnTo=${encodeURIComponent(returnTo)}`)
+}
+
+function shouldRefresh(path: string) {
+  return !['/auth/csrf', '/auth/refresh', '/auth/logout'].includes(path)
+}
+
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
@@ -78,19 +121,33 @@ export async function apiFetch<T>(
       ? null
       : await ensureCsrfToken()
 
+  const request = () => fetch(getApiUrl(path), {
+    ...init,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {}),
+      ...init?.headers,
+    },
+  })
+
   let res: Response
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, {
-      ...init,
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {}),
-        ...init?.headers,
-      },
-    })
+    res = await request()
   } catch {
     throw new ApiError('Network error — could not reach the server.', 0)
+  }
+
+  if (res.status === 401 && shouldRefresh(path)) {
+    const refreshed = await refreshAccessSession()
+    if (refreshed) {
+      try {
+        res = await request()
+      } catch {
+        throw new ApiError('Network error — could not reach the server.', 0)
+      }
+    }
+    if (res.status === 401) redirectToLogin()
   }
 
   if (!res.ok) {
