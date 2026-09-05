@@ -2,6 +2,7 @@ import {
   LayoutDashboard,
   Layers,
   FlaskConical,
+  Gauge,
   ChartNoAxesCombined,
   BookText,
   type LucideIcon,
@@ -17,6 +18,7 @@ export const navItems: NavItem[] = [
   { title: 'Dashboard', href: '/', icon: LayoutDashboard },
   { title: 'Strategies', href: '/strategies', icon: Layers },
   { title: 'Backtests', href: '/backtests', icon: FlaskConical },
+  { title: 'Usage', href: '/usage', icon: Gauge },
   { title: 'Data Explorer', href: '/data-explorer', icon: ChartNoAxesCombined },
   { title: 'Trading Journal', href: '/journal', icon: BookText },
 ]
