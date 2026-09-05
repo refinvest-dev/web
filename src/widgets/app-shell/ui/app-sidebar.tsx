@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CandlestickChart, ChevronsUpDown } from 'lucide-react'
+import { CandlestickChart } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -16,7 +16,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/shared/ui/sidebar'
-import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
+import { LogoutMenu } from '@/features/logout/ui/logout-menu'
 import { navItems } from './nav-items'
 
 export function AppSidebar() {
@@ -76,20 +76,7 @@ export function AppSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg">
-              <Avatar className="size-8 rounded-md">
-                <AvatarFallback className="rounded-md text-xs">
-                  JK
-                </AvatarFallback>
-              </Avatar>
-              <div className="grid flex-1 text-left leading-tight">
-                <span className="truncate text-sm font-medium">Jae Kim</span>
-                <span className="truncate text-xs text-muted-foreground">
-                  jae@refinvest.io
-                </span>
-              </div>
-              <ChevronsUpDown className="ml-auto size-4 text-muted-foreground" />
-            </SidebarMenuButton>
+            <LogoutMenu />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
