@@ -24,6 +24,7 @@ import {
 } from '@/shared/ui/field'
 import { Input } from '@/shared/ui/input'
 import { useAssetAvailabilityQuery } from '@/entities/asset/api/queries'
+import { useUsageQuery } from '@/entities/account/api/queries'
 import type { RunBacktestRequest } from '@/entities/backtest/model/types'
 import { useRunBacktest } from '../api/use-run-backtest'
 
@@ -104,6 +105,7 @@ export function RunBacktestDialog({
     executionAsset,
     open,
   )
+  const usageQuery = useUsageQuery(open)
   const availablePeriod = getOverlappingPeriod(
     primaryAvailabilityQuery.data?.dataAvailability,
     executionAvailabilityQuery.data?.dataAvailability,
@@ -229,6 +231,14 @@ export function RunBacktestDialog({
             ) : (
               <FieldDescription>
                 Available for both Assets: {availablePeriod.start} to {availablePeriod.end}.
+              </FieldDescription>
+            )}
+
+            {usageQuery.data && (
+              <FieldDescription>
+                {usageQuery.data.tier} plan: {usageQuery.data.backtestsUsedThisMonth}/
+                {usageQuery.data.backtestMonthlyLimit} backtests used this month; maximum period is{' '}
+                {usageQuery.data.maxBacktestPeriodDays} days.
               </FieldDescription>
             )}
 
