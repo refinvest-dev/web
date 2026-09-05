@@ -18,7 +18,9 @@ export function getApiUrl(path: string): string {
   return `${API_BASE_URL}${path}`
 }
 
-let refreshPromise: Promise<boolean> | undefined
+type RefreshResult = 'refreshed' | 'unauthenticated' | 'csrf-rejected' | 'unavailable'
+
+let refreshPromise: Promise<RefreshResult> | undefined
 
 function csrfTokenFromCookie(): string | null {
   if (typeof document === 'undefined') return null
@@ -29,9 +31,9 @@ function csrfTokenFromCookie(): string | null {
   return entry ? decodeURIComponent(entry.slice(prefix.length)) : null
 }
 
-async function ensureCsrfToken(): Promise<string> {
+async function ensureCsrfToken(forceRenewal = false): Promise<string> {
   const currentToken = csrfTokenFromCookie()
-  if (currentToken) return currentToken
+  if (currentToken && !forceRenewal) return currentToken
 
   let response: Response
   try {
@@ -75,12 +77,13 @@ export class ApiError extends Error {
   }
 }
 
-async function refreshAccessSession(): Promise<boolean> {
+async function refreshAccessSession(): Promise<RefreshResult> {
   if (refreshPromise) return refreshPromise
 
   refreshPromise = (async () => {
     try {
-      const csrfToken = await ensureCsrfToken()
+      // A stale CSRF cookie must not turn an expired session into a 403.
+      const csrfToken = await ensureCsrfToken(true)
       const response = await fetch(getApiUrl('/auth/refresh'), {
         method: 'POST',
         credentials: 'include',
@@ -89,9 +92,12 @@ async function refreshAccessSession(): Promise<boolean> {
           'X-XSRF-TOKEN': csrfToken,
         },
       })
-      return response.ok
+      if (response.ok) return 'refreshed'
+      if (response.status === 401) return 'unauthenticated'
+      if (response.status === 403) return 'csrf-rejected'
+      return 'unavailable'
     } catch {
-      return false
+      return 'unavailable'
     } finally {
       refreshPromise = undefined
     }
@@ -139,15 +145,20 @@ export async function apiFetch<T>(
   }
 
   if (res.status === 401 && shouldRefresh(path)) {
-    const refreshed = await refreshAccessSession()
-    if (refreshed) {
+    const refreshResult = await refreshAccessSession()
+    if (refreshResult === 'refreshed') {
       try {
         res = await request()
       } catch {
         throw new ApiError('Network error — could not reach the server.', 0)
       }
     }
-    if (res.status === 401) redirectToLogin()
+    if (
+      refreshResult === 'unauthenticated' ||
+      (refreshResult === 'refreshed' && res.status === 401)
+    ) {
+      redirectToLogin()
+    }
   }
 
   if (!res.ok) {
