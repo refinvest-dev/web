@@ -33,7 +33,11 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('en')
 
   useEffect(() => {
-    setLocaleState(getInitialLocale())
+    const initialLocale = getInitialLocale()
+    if (initialLocale === 'en') return
+
+    const timer = window.setTimeout(() => setLocaleState(initialLocale), 0)
+    return () => window.clearTimeout(timer)
   }, [])
 
   useEffect(() => {
