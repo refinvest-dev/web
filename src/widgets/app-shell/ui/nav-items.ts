@@ -3,7 +3,6 @@ import {
   Layers,
   FlaskConical,
   Gauge,
-  ChartNoAxesCombined,
   BookText,
   type LucideIcon,
 } from 'lucide-react'
@@ -19,6 +18,5 @@ export const navItems: NavItem[] = [
   { title: { en: 'Strategies', ko: '전략' }, href: '/strategies', icon: Layers },
   { title: { en: 'Backtests', ko: '백테스트' }, href: '/backtests', icon: FlaskConical },
   { title: { en: 'Usage', ko: '사용량' }, href: '/usage', icon: Gauge },
-  { title: { en: 'Data Explorer', ko: '데이터 탐색기' }, href: '/data-explorer', icon: ChartNoAxesCombined },
   { title: { en: 'Trading Journal', ko: '트레이딩 저널' }, href: '/journal', icon: BookText },
 ]
