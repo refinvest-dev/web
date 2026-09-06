@@ -5,16 +5,18 @@
  * UI components never call this directly; entity API functions do
  * (Component -> Hook -> API function -> HTTP client -> Backend).
  *
- * The base URL is configurable so the app can target the real Core API in
- * any environment. It defaults to the same-origin `/api` route handlers,
- * which implement the contract for local/preview development.
+ * The base URL is configured per environment and must point to Core's public
+ * API. The Web app never falls back to a local API implementation.
  */
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? '/api'
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '')
 
 /** Builds a URL for a Core public API path. */
 export function getApiUrl(path: string): string {
+  if (!API_BASE_URL) {
+    throw new Error('NEXT_PUBLIC_API_BASE_URL must point to the Core public API.')
+  }
   return `${API_BASE_URL}${path}`
 }
 
