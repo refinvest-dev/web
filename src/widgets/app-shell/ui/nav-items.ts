@@ -9,16 +9,16 @@ import {
 } from 'lucide-react'
 
 export interface NavItem {
-  title: string
+  title: Record<'en' | 'ko', string>
   href: string
   icon: LucideIcon
 }
 
 export const navItems: NavItem[] = [
-  { title: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { title: 'Strategies', href: '/strategies', icon: Layers },
-  { title: 'Backtests', href: '/backtests', icon: FlaskConical },
-  { title: 'Usage', href: '/usage', icon: Gauge },
-  { title: 'Data Explorer', href: '/data-explorer', icon: ChartNoAxesCombined },
-  { title: 'Trading Journal', href: '/journal', icon: BookText },
+  { title: { en: 'Dashboard', ko: '대시보드' }, href: '/', icon: LayoutDashboard },
+  { title: { en: 'Strategies', ko: '전략' }, href: '/strategies', icon: Layers },
+  { title: { en: 'Backtests', ko: '백테스트' }, href: '/backtests', icon: FlaskConical },
+  { title: { en: 'Usage', ko: '사용량' }, href: '/usage', icon: Gauge },
+  { title: { en: 'Data Explorer', ko: '데이터 탐색기' }, href: '/data-explorer', icon: ChartNoAxesCombined },
+  { title: { en: 'Trading Journal', ko: '트레이딩 저널' }, href: '/journal', icon: BookText },
 ]
