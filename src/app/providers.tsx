@@ -7,6 +7,7 @@ import {
   isServer,
 } from '@tanstack/react-query'
 import { ApiError } from '@/shared/api/http'
+import { LocaleProvider } from '@/shared/config/locale'
 
 function makeQueryClient() {
   return new QueryClient({
@@ -38,6 +39,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(getQueryClient)
 
   return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <LocaleProvider>{children}</LocaleProvider>
+    </QueryClientProvider>
   )
 }

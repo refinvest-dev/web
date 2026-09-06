@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { getSocialLoginUrl, type SocialProvider } from '@/entities/account/api/account-api'
 import { Button } from '@/shared/ui/button'
+import { useLocale } from '@/shared/config/locale'
 
 const providers: Array<{ id: SocialProvider; label: string }> = [
   { id: 'kakao', label: 'Continue with Kakao' },
@@ -18,6 +19,7 @@ function safeReturnTo(returnTo: string | null): string {
 
 export function SocialLoginButtons({ returnTo }: { returnTo: string | null }) {
   const [pendingProvider, setPendingProvider] = useState<SocialProvider | null>(null)
+  const { locale } = useLocale()
   const destination = safeReturnTo(returnTo)
 
   function startLogin(provider: SocialProvider) {
@@ -36,7 +38,7 @@ export function SocialLoginButtons({ returnTo }: { returnTo: string | null }) {
           variant="outline"
         >
           {pendingProvider === provider.id && <Loader2 data-icon="inline-start" className="animate-spin" />}
-          {provider.label}
+          {locale === 'ko' ? `${provider.label.replace('Continue with ', '')}로 계속하기` : provider.label}
         </Button>
       ))}
     </div>

@@ -17,10 +17,13 @@ import {
   SidebarRail,
 } from '@/shared/ui/sidebar'
 import { LogoutMenu } from '@/features/logout/ui/logout-menu'
+import { useLocale } from '@/shared/config/locale'
 import { navItems } from './nav-items'
+import { LanguageSelector } from './language-selector'
 
 export function AppSidebar() {
   const pathname = usePathname() ?? ''
+  const { locale } = useLocale()
 
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href)
@@ -53,7 +56,7 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarGroupLabel>{locale === 'ko' ? '작업 공간' : 'Workspace'}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
@@ -61,10 +64,10 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     render={<Link href={item.href} />}
                     isActive={isActive(item.href)}
-                    tooltip={item.title}
+                    tooltip={item.title[locale]}
                   >
                     <item.icon />
-                    <span>{item.title}</span>
+                    <span>{item.title[locale]}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -75,6 +78,9 @@ export function AppSidebar() {
 
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <LanguageSelector sidebar />
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <LogoutMenu />
           </SidebarMenuItem>
