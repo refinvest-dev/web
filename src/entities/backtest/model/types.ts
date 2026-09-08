@@ -82,10 +82,14 @@ export interface BacktestTrade {
 }
 
 export interface BuyAndHoldResult {
-  totalReturn?: number
-  cagr?: number
-  mdd?: number
+  asset: string
+  equityCurve: EquityCurvePoint[]
+  totalReturn: number
+  cagr: number | null
+  mdd: number
 }
+
+export type SignalExecutionMarketRelation = 'SAME_MARKET' | 'CROSS_MARKET'
 
 export interface SignalExecutionDelay {
   median: number
@@ -108,6 +112,7 @@ export interface BacktestResult {
     primary: BuyAndHoldResult
     secondaryReference?: BuyAndHoldResult | null
   }
+  signalExecutionMarketRelation: SignalExecutionMarketRelation
   signalExecutionDelay: SignalExecutionDelay
   sampleSizeWarning: 'NONE' | 'LOW' | 'ZERO'
   dataIntegrityStatus: DataIntegrityStatus
