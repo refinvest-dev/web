@@ -9,10 +9,18 @@ import {
 } from 'recharts'
 import { ChartNoAxesColumnIncreasing, TriangleAlert } from 'lucide-react'
 import type { BacktestResult, BacktestTrade } from '../model/types'
+import {
+  createTradeTimeline,
+  deriveDrawdownCurve,
+  mergePortfolioCurves,
+} from '../model/result-visualization'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
+import { Badge } from '@/shared/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
 import {
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
@@ -26,13 +34,6 @@ import {
   formatPercent,
 } from '@/shared/lib/format'
 import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/shared/ui/empty'
-import {
   Table,
   TableBody,
   TableCell,
@@ -42,41 +43,29 @@ import {
 } from '@/shared/ui/table'
 
 const chartConfig = {
-  equity: { label: 'Equity', color: 'var(--chart-1)' },
+  strategy: { label: 'Strategy', color: 'var(--chart-1)' },
+  benchmark: { label: 'Buy & hold', color: 'var(--chart-5)' },
+} satisfies ChartConfig
+
+const drawdownChartConfig = {
+  strategy: { label: 'Strategy drawdown', color: 'var(--financial-negative)' },
+  benchmark: { label: 'Buy & hold drawdown', color: 'var(--chart-5)' },
 } satisfies ChartConfig
 
 export function BacktestResultOverview({ result }: { result: BacktestResult }) {
   const { metrics } = result
-
-  if (result.sampleSizeWarning === 'ZERO') {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Backtest result</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Empty className="border-0 p-2">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <ChartNoAxesColumnIncreasing />
-              </EmptyMedia>
-              <EmptyTitle>No trades in this period</EmptyTitle>
-              <EmptyDescription>
-                The strategy did not produce an entry signal for the selected
-                period, so performance metrics are unavailable.
-              </EmptyDescription>
-            </EmptyHeader>
-            <span className="font-mono text-sm tabular-nums text-muted-foreground">
-              {formatNumber(metrics.tradeCount ?? 0)} trades
-            </span>
-          </Empty>
-        </CardContent>
-      </Card>
-    )
-  }
+  const primaryBenchmark = result.benchmark.primary
+  const equityCurve = mergePortfolioCurves(result.equityCurve, primaryBenchmark.equityCurve)
+  const drawdownCurve = mergePortfolioCurves(
+    deriveDrawdownCurve(result.equityCurve),
+    deriveDrawdownCurve(primaryBenchmark.equityCurve),
+  )
+  const leveragedExecutionAsset = ['TQQQ', 'SOXL'].includes(primaryBenchmark.asset)
 
   return (
     <div className="flex flex-col gap-4">
+      {result.sampleSizeWarning === 'ZERO' && <ZeroTradeNotice tradeCount={metrics.tradeCount ?? 0} />}
+
       {result.sampleSizeWarning === 'LOW' && (
         <Alert>
           <TriangleAlert />
@@ -87,6 +76,8 @@ export function BacktestResultOverview({ result }: { result: BacktestResult }) {
           </AlertDescription>
         </Alert>
       )}
+
+      {leveragedExecutionAsset && <LeveragedAssetWarning asset={primaryBenchmark.asset} />}
 
       <section aria-labelledby="backtest-metrics">
         <h2 id="backtest-metrics" className="sr-only">
@@ -102,67 +93,28 @@ export function BacktestResultOverview({ result }: { result: BacktestResult }) {
         </div>
       </section>
 
-      <Card className="gap-4">
-        <CardHeader>
-          <CardTitle className="text-sm">Equity curve</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {result.equityCurve.length > 0 ? (
-            <ChartContainer config={chartConfig} className="aspect-auto h-72 w-full">
-              <LineChart data={result.equityCurve} margin={{ left: 4, right: 8, top: 4 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="date"
-                  tickLine={false}
-                  axisLine={false}
-                  minTickGap={36}
-                  tickMargin={10}
-                  tickFormatter={formatDate}
-                />
-                <YAxis
-                  dataKey="value"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={4}
-                  width={60}
-                  tickFormatter={(value: number) => formatCurrency(value, { compact: true })}
-                />
-                <ChartTooltip
-                  cursor={{ strokeDasharray: '3 3' }}
-                  content={
-                    <ChartTooltipContent
-                      labelFormatter={(label) => formatDate(String(label))}
-                      formatter={(value) =>
-                        typeof value === 'number'
-                          ? formatCurrency(value)
-                          : String(value)
-                      }
-                    />
-                  }
-                />
-                <Line
-                  dataKey="value"
-                  name="equity"
-                  type="monotone"
-                  stroke="var(--color-equity)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ChartContainer>
-          ) : (
-            <p className="py-16 text-center text-sm text-muted-foreground">
-              No equity-curve points are available for this result.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      <PortfolioChartCard
+        title="Equity curve"
+        description={`Strategy compared with ${primaryBenchmark.asset} buy & hold`}
+        data={equityCurve}
+        config={chartConfig}
+        formatValue={formatGrowthIndex}
+      />
+
+      <PortfolioChartCard
+        title="Drawdown"
+        description="Derived from each portfolio index; no price series is used."
+        data={drawdownCurve}
+        config={drawdownChartConfig}
+        formatValue={(value) => formatPercent(value, { signed: true })}
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <BenchmarkCard result={result} />
         <IntegrityCard result={result} />
       </div>
 
+      <TradeTimeline result={result} />
       <TradesCard trades={result.trades} />
     </div>
   )
@@ -204,12 +156,106 @@ function MetricTile({
   )
 }
 
+function ZeroTradeNotice({ tradeCount }: { tradeCount: number }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">No trades in this period</CardTitle>
+      </CardHeader>
+      <CardContent className="flex items-start gap-3">
+        <ChartNoAxesColumnIncreasing className="mt-0.5 size-4 text-muted-foreground" />
+        <div className="space-y-1 text-sm">
+          <p>The strategy did not produce an entry signal, so performance metrics are unavailable.</p>
+          <p className="font-mono text-xs text-muted-foreground">{formatNumber(tradeCount)} trades</p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function LeveragedAssetWarning({ asset }: { asset: string }) {
+  return (
+    <Alert>
+      <TriangleAlert />
+      <AlertTitle>Leveraged ETF notice ({asset})</AlertTitle>
+      <AlertDescription>
+        TQQQ/SOXL pursue daily leverage targets. Volatility and daily compounding can make long-term results differ from a simple multiple of the underlying index.
+      </AlertDescription>
+    </Alert>
+  )
+}
+
+function PortfolioChartCard({
+  title,
+  description,
+  data,
+  config,
+  formatValue,
+}: {
+  title: string
+  description: string
+  data: ReturnType<typeof mergePortfolioCurves>
+  config: ChartConfig
+  formatValue: (value: number) => string
+}) {
+  return (
+    <Card className="gap-4">
+      <CardHeader>
+        <CardTitle className="text-sm">{title}</CardTitle>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </CardHeader>
+      <CardContent>
+        {data.length > 0 ? (
+          <ChartContainer config={config} className="aspect-auto h-72 w-full">
+            <LineChart data={data} margin={{ left: 4, right: 8, top: 4 }}>
+              <CartesianGrid vertical={false} strokeDasharray="3 3" />
+              <XAxis
+                dataKey="date"
+                tickLine={false}
+                axisLine={false}
+                minTickGap={36}
+                tickMargin={10}
+                tickFormatter={formatDate}
+              />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tickMargin={4}
+                width={60}
+                tickFormatter={formatValue}
+              />
+              <ChartTooltip
+                cursor={{ strokeDasharray: '3 3' }}
+                content={
+                  <ChartTooltipContent
+                    labelFormatter={(label) => formatDate(String(label))}
+                    formatter={(value) =>
+                      typeof value === 'number' ? formatValue(value) : String(value)
+                    }
+                  />
+                }
+              />
+              <ChartLegend content={<ChartLegendContent />} />
+              <Line dataKey="strategy" type="monotone" stroke="var(--color-strategy)" strokeWidth={2} dot={false} connectNulls={false} />
+              <Line dataKey="benchmark" type="monotone" stroke="var(--color-benchmark)" strokeWidth={2} dot={false} connectNulls={false} />
+            </LineChart>
+          </ChartContainer>
+        ) : (
+          <p className="py-16 text-center text-sm text-muted-foreground">
+            No portfolio-index points are available for this result.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function BenchmarkCard({ result }: { result: BacktestResult }) {
   const benchmark = result.benchmark.primary
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm">Execution asset benchmark</CardTitle>
+        <CardTitle className="text-sm">{benchmark.asset} buy & hold</CardTitle>
       </CardHeader>
       <CardContent>
         <dl className="grid grid-cols-3 gap-4">
@@ -217,6 +263,11 @@ function BenchmarkCard({ result }: { result: BacktestResult }) {
           <Detail label="CAGR" value={formatOptionalPercent(benchmark.cagr)} />
           <Detail label="Max DD" value={formatOptionalPercent(benchmark.mdd)} />
         </dl>
+        {result.benchmark.secondaryReference && (
+          <p className="mt-4 text-xs text-muted-foreground">
+            Signal asset reference: <span className="font-mono">{result.benchmark.secondaryReference.asset}</span>
+          </p>
+        )}
       </CardContent>
     </Card>
   )
@@ -296,6 +347,53 @@ function TradesCard({ trades }: { trades: BacktestTrade[] }) {
   )
 }
 
+function TradeTimeline({ result }: { result: BacktestResult }) {
+  const events = createTradeTimeline(result.trades)
+  const executionAsset = result.benchmark.primary.asset
+  const signalAsset = result.benchmark.secondaryReference?.asset ?? executionAsset
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between gap-3">
+        <CardTitle className="text-sm">Trade timeline</CardTitle>
+        {result.signalExecutionMarketRelation === 'CROSS_MARKET' && (
+          <Badge variant="outline">Cross-market: {signalAsset} → {executionAsset}</Badge>
+        )}
+      </CardHeader>
+      <CardContent>
+        {events.length > 0 ? (
+          <ol className="space-y-3 border-l border-border pl-4">
+            {events.map((event) => (
+              <li key={`${event.tradeIndex}-${event.kind}-${event.time}`} className="relative text-sm">
+                <span className="absolute -left-[21px] top-1.5 size-2 rounded-full bg-muted-foreground" aria-hidden />
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <span>{timelineEventLabel(event.kind, signalAsset, executionAsset)}</span>
+                  <time className="font-mono text-xs text-muted-foreground" dateTime={event.time}>
+                    {formatDateTime(event.time)}
+                  </time>
+                </div>
+                <p className="text-xs text-muted-foreground">Trade {event.tradeIndex + 1}</p>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="text-sm text-muted-foreground">No signal, entry, or exit events occurred in this result.</p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function timelineEventLabel(
+  kind: 'SIGNAL' | 'ENTRY' | 'EXIT',
+  signalAsset: string,
+  executionAsset: string,
+) {
+  if (kind === 'SIGNAL') return `Signal confirmed (${signalAsset})`
+  if (kind === 'ENTRY') return `Entered ${executionAsset}`
+  return `Exited ${executionAsset}`
+}
+
 function Detail({
   label,
   value,
@@ -313,6 +411,10 @@ function Detail({
   )
 }
 
-function formatOptionalPercent(value: number | undefined) {
+function formatOptionalPercent(value: number | null | undefined) {
   return value == null ? '—' : formatPercent(value, { signed: true })
+}
+
+function formatGrowthIndex(value: number) {
+  return formatPercent(value - 1, { signed: true })
 }
