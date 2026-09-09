@@ -36,6 +36,12 @@ test.describe('strategy version result restoration', () => {
   test('restores the latest completed negative-drawdown result after direct navigation and refresh', async ({
     browser,
   }) => {
+    // This acceptance creates and waits for two asynchronous backtests. The
+    // per-run poll allows 120 seconds, so Playwright's default 30-second test
+    // timeout must not terminate the scenario while CI is still processing a
+    // PENDING run.
+    test.setTimeout(300_000)
+
     if (!accessToken) {
       throw new Error('REFINVEST_E2E_ACCESS_TOKEN is required.')
     }
