@@ -22,6 +22,7 @@ interface StrategyVersion {
 interface BacktestRun {
   id: string
   status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+  datasetSnapshotId?: string | null
   result?: {
     metrics: {
       mdd: number
@@ -48,6 +49,7 @@ test.describe('strategy version result restoration', () => {
       const latestRun = await startBacktestRun(api, version.id, 0.02)
       const completedRun = await waitForCompletedRun(api, latestRun.id)
 
+      expect(completedRun.datasetSnapshotId).toBe('integration-e2e-v1')
       expect(completedRun.result?.metrics.mdd).toBeLessThan(0)
 
       const webHost = new URL(webUrl).hostname
