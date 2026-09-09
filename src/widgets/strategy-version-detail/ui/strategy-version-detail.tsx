@@ -22,7 +22,10 @@ import { useStrategyVersionQuery } from '@/entities/strategy-version/api/queries
 import type { StrategyVersion } from '@/entities/strategy/model/types'
 import { StrategyVersionLatestBadge } from '@/entities/strategy-version/ui/strategy-version-latest-badge'
 import { StrategyVersionDefinition } from '@/entities/strategy-version/ui/strategy-version-definition'
-import { useBacktestRunQuery } from '@/entities/backtest/api/queries'
+import {
+  useBacktestRunQuery,
+  useLatestCompletedBacktestRunQuery,
+} from '@/entities/backtest/api/queries'
 import { RunBacktestDialog } from '@/features/run-backtest/ui/run-backtest-dialog'
 
 export function StrategyVersionDetail({
@@ -112,7 +115,19 @@ function StrategyVersionDetailContent({
   version: StrategyVersion | null
   isLatest: boolean
 }) {
-  const [runId, setRunId] = useState<string | null>(null)
+  const [acceptedRun, setAcceptedRun] = useState<{
+    strategyVersionId: string
+    runId: string
+  } | null>(null)
+  const latestCompletedRunQuery = useLatestCompletedBacktestRunQuery(
+    strategyId,
+    version?.id ?? '',
+  )
+  const acceptedRunId =
+    acceptedRun?.strategyVersionId === version?.id
+      ? acceptedRun?.runId ?? null
+      : null
+  const runId = acceptedRunId ?? latestCompletedRunQuery.data?.id ?? null
   const runQuery = useBacktestRunQuery(runId)
 
   if (!version) return null
@@ -134,7 +149,12 @@ function StrategyVersionDetailContent({
                 strategyVersionId={version.id}
                 primarySignalAsset={version.primarySignalAsset}
                 executionAsset={version.executionAsset}
-                onAccepted={setRunId}
+                onAccepted={(acceptedRunId) =>
+                  setAcceptedRun({
+                    strategyVersionId: version.id,
+                    runId: acceptedRunId,
+                  })
+                }
               />
             </div>
           </div>
@@ -149,6 +169,25 @@ function StrategyVersionDetailContent({
           </dl>
         </CardContent>
       </Card>
+
+      {latestCompletedRunQuery.isError && !acceptedRunId && (
+        <Alert variant="destructive">
+          <AlertTitle>Couldn&apos;t restore the latest backtest</AlertTitle>
+          <AlertDescription>
+            <p>The strategy version loaded, but its completed backtest could not be found.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-1 w-fit"
+              onClick={() => latestCompletedRunQuery.refetch()}
+              disabled={latestCompletedRunQuery.isFetching}
+            >
+              <RotateCw data-icon="inline-start" />
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {runId && (
         <BacktestRunStatus
