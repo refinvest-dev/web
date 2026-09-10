@@ -16,6 +16,7 @@ import {
 } from '@/shared/ui/empty'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { formatDate } from '@/shared/lib/format'
+import { getBacktestFailureMessage } from '@/entities/backtest/model/get-backtest-failure-message'
 import type { BacktestRunDetail } from '@/entities/backtest/model/types'
 import { BacktestResultOverview } from '@/entities/backtest/ui/backtest-result-overview'
 import { useStrategyVersionQuery } from '@/entities/strategy-version/api/queries'
@@ -25,6 +26,7 @@ import { StrategyVersionDefinition } from '@/entities/strategy-version/ui/strate
 import {
   useBacktestRunQuery,
   useLatestCompletedBacktestRunQuery,
+  useLatestTerminalBacktestRunQuery,
 } from '@/entities/backtest/api/queries'
 import { RunBacktestDialog } from '@/features/run-backtest/ui/run-backtest-dialog'
 
@@ -120,12 +122,18 @@ function StrategyVersionDetailContent({
     runId: string
   } | null>(null)
   const latestCompletedRunQuery = useLatestCompletedBacktestRunQuery(version?.id ?? '')
+  const latestTerminalRunQuery = useLatestTerminalBacktestRunQuery(version?.id ?? '')
   const acceptedRunId =
     acceptedRun?.strategyVersionId === version?.id
       ? acceptedRun?.runId ?? null
       : null
   const runId = acceptedRunId ?? latestCompletedRunQuery.data?.id ?? null
   const runQuery = useBacktestRunQuery(runId)
+  const restoredFailedRunId =
+    !acceptedRunId && latestTerminalRunQuery.data?.status === 'FAILED'
+      ? latestTerminalRunQuery.data.id
+      : null
+  const restoredFailedRunQuery = useBacktestRunQuery(restoredFailedRunId)
 
   if (!version) return null
 
@@ -186,11 +194,38 @@ function StrategyVersionDetailContent({
         </Alert>
       )}
 
+      {latestTerminalRunQuery.isError && !acceptedRunId && (
+        <Alert variant="destructive">
+          <AlertTitle>Couldn&apos;t restore the latest backtest status</AlertTitle>
+          <AlertDescription>
+            <p>The strategy version loaded, but its last backtest status could not be found.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-1 w-fit"
+              onClick={() => latestTerminalRunQuery.refetch()}
+              disabled={latestTerminalRunQuery.isFetching}
+            >
+              <RotateCw data-icon="inline-start" />
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {runId && (
         <BacktestRunStatus
           runId={runId}
           run={runQuery.data}
           isError={runQuery.isError}
+        />
+      )}
+
+      {restoredFailedRunId && (
+        <BacktestRunStatus
+          runId={restoredFailedRunId}
+          run={restoredFailedRunQuery.data}
+          isError={restoredFailedRunQuery.isError}
         />
       )}
 
@@ -241,9 +276,19 @@ function BacktestRunStatus({
       </AlertTitle>
       <AlertDescription>
         <span className="font-mono text-xs">{runId}</span>
-        {run?.status === 'FAILED' && run.failureReason
-          ? ` — ${run.failureReason}`
-          : null}
+        {run?.status === 'FAILED' ? (
+          <div className="mt-1 space-y-1">
+            <p>{getBacktestFailureMessage(run.errorCode)}</p>
+            {run.errorCode && (
+              <p className="font-mono text-xs text-muted-foreground">
+                Failure code: {run.errorCode}
+              </p>
+            )}
+            <p className="text-muted-foreground">
+              Adjust the request if needed, then use Run backtest to try again.
+            </p>
+          </div>
+        ) : null}
         {run?.status === 'PENDING' || run?.status === 'RUNNING'
           ? ' — this page checks for updates every few seconds.'
           : null}

@@ -5,6 +5,7 @@ import { CircleAlert, History, RotateCw } from 'lucide-react'
 import type { BacktestRunSummary } from '@/entities/backtest/model/types'
 import { useBacktestRunQuery, useBacktestRunsQuery } from '@/entities/backtest/api/queries'
 import { BacktestResultOverview } from '@/entities/backtest/ui/backtest-result-overview'
+import { getBacktestFailureMessage } from '@/entities/backtest/model/get-backtest-failure-message'
 import { useStrategiesQuery } from '@/entities/strategy/api/queries'
 import { ApiError } from '@/shared/api/http'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
@@ -201,7 +202,7 @@ function BacktestRunDetail({ runId }: { runId: string | null }) {
         <CircleAlert />
         <AlertTitle>Backtest failed</AlertTitle>
         <AlertDescription>
-          {data.failureReason ?? 'The backtest could not be completed.'}
+          {getBacktestFailureMessage(data.errorCode)}
         </AlertDescription>
       </Alert>
     )
