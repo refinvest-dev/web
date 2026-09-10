@@ -21,9 +21,12 @@ export function useRunBacktest(options?: {
       strategyVersionId: string
       body: RunBacktestRequest
     }) => runBacktest(strategyVersionId, body),
-    onSuccess: (run) => {
+    onSuccess: (run, { strategyVersionId }) => {
       queryClient.invalidateQueries({
         queryKey: backtestKeys.strategyRuns(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: backtestKeys.latestCompleted(strategyVersionId),
       })
       queryClient.setQueryData(backtestKeys.run(run.id), run)
       options?.onAccepted?.(run)

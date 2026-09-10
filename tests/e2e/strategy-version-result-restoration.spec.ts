@@ -4,6 +4,7 @@ import {
   test,
   type APIRequestContext,
   type Page,
+  type Response,
 } from '@playwright/test'
 
 const accessToken = process.env.REFINVEST_E2E_ACCESS_TOKEN
@@ -27,6 +28,14 @@ interface BacktestRun {
     metrics: {
       mdd: number
     }
+  } | null
+}
+
+interface LatestCompletedBacktestRunResponse {
+  run: {
+    id: string
+    strategyVersionId: string
+    status: 'COMPLETED'
   } | null
 }
 
@@ -72,10 +81,28 @@ test.describe('strategy version result restoration', () => {
       ])
 
       const page = await authenticatedContext.newPage()
+      const initialLatestRunResponse = waitForLatestCompletedRunResponse(
+        page,
+        version.id,
+      )
       await page.goto(`/strategies/${strategy.id}/versions/${version.id}`)
+      await expectLatestCompletedRunResponse(
+        await initialLatestRunResponse,
+        version.id,
+        completedRun.id,
+      )
       const initialDrawdown = await expectRestoredResult(page)
 
+      const refreshedLatestRunResponse = waitForLatestCompletedRunResponse(
+        page,
+        version.id,
+      )
       await page.reload()
+      await expectLatestCompletedRunResponse(
+        await refreshedLatestRunResponse,
+        version.id,
+        completedRun.id,
+      )
       const refreshedDrawdown = await expectRestoredResult(page)
       expect(refreshedDrawdown).toBe(initialDrawdown)
 
@@ -188,4 +215,28 @@ async function expectRestoredResult(page: Page): Promise<string> {
   const maxDrawdown = page.getByText('Max drawdown', { exact: true }).locator('..')
   await expect(maxDrawdown).toContainText(/-\d/)
   return (await maxDrawdown.textContent()) ?? ''
+}
+
+function waitForLatestCompletedRunResponse(page: Page, strategyVersionId: string) {
+  const path = `/strategy-versions/${encodeURIComponent(
+    strategyVersionId,
+  )}/backtest-runs/latest-completed`
+  return page.waitForResponse(
+    (response) =>
+      response.url().endsWith(path) && response.request().method() === 'GET',
+  )
+}
+
+async function expectLatestCompletedRunResponse(
+  response: Response,
+  strategyVersionId: string,
+  expectedRunId: string,
+) {
+  expect(response.status()).toBe(200)
+  const body: LatestCompletedBacktestRunResponse = await response.json()
+  expect(body.run).toMatchObject({
+    id: expectedRunId,
+    strategyVersionId,
+    status: 'COMPLETED',
+  })
 }
