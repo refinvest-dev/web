@@ -23,6 +23,7 @@ interface StrategyVersion {
 interface BacktestRun {
   id: string
   status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+  errorCode?: string | null
   datasetSnapshotId?: string | null
   result?: {
     metrics: {
@@ -39,13 +40,21 @@ interface LatestCompletedBacktestRunResponse {
   } | null
 }
 
+interface LatestTerminalBacktestRunResponse {
+  run: {
+    id: string
+    strategyVersionId: string
+    status: 'COMPLETED' | 'FAILED'
+  } | null
+}
+
 test.describe('strategy version result restoration', () => {
   test.skip(!accessToken, 'REFINVEST_E2E_ACCESS_TOKEN is required.')
 
-  test('restores the latest completed negative-drawdown result after direct navigation and refresh', async ({
+  test('restores the latest completed result and latest failed status after direct navigation and refresh', async ({
     browser,
   }) => {
-    // This acceptance creates and waits for two asynchronous backtests. The
+    // This acceptance creates and waits for three asynchronous backtests. The
     // per-run poll allows 120 seconds, so Playwright's default 30-second test
     // timeout must not terminate the scenario while CI is still processing a
     // PENDING run.
@@ -63,9 +72,15 @@ test.describe('strategy version result restoration', () => {
       await waitForCompletedRun(api, previousRun.id)
       const latestRun = await startBacktestRun(api, version.id, 0.02)
       const completedRun = await waitForCompletedRun(api, latestRun.id)
+      const failedRun = await startBacktestRun(api, version.id, 0, {
+        start: '2024-01-02',
+        end: '2024-01-08',
+      })
+      const failedStatus = await waitForFailedRun(api, failedRun.id)
 
       expect(completedRun.datasetSnapshotId).toBe('integration-e2e-v1')
       expect(completedRun.result?.metrics.mdd).toBeLessThan(0)
+      expect(failedStatus.errorCode).toBe('CALENDAR_RESOLUTION_FAILED')
 
       const webHost = new URL(webUrl).hostname
       const authenticatedContext = await browser.newContext()
@@ -85,15 +100,30 @@ test.describe('strategy version result restoration', () => {
         page,
         version.id,
       )
+      const initialLatestTerminalRunResponse = waitForLatestTerminalRunResponse(
+        page,
+        version.id,
+      )
       await page.goto(`/strategies/${strategy.id}/versions/${version.id}`)
       await expectLatestCompletedRunResponse(
         await initialLatestRunResponse,
         version.id,
         completedRun.id,
       )
+      await expectLatestTerminalRunResponse(
+        await initialLatestTerminalRunResponse,
+        version.id,
+        failedStatus.id,
+        'FAILED',
+      )
       const initialDrawdown = await expectRestoredResult(page)
+      await expectRestoredFailure(page)
 
       const refreshedLatestRunResponse = waitForLatestCompletedRunResponse(
+        page,
+        version.id,
+      )
+      const refreshedLatestTerminalRunResponse = waitForLatestTerminalRunResponse(
         page,
         version.id,
       )
@@ -103,7 +133,14 @@ test.describe('strategy version result restoration', () => {
         version.id,
         completedRun.id,
       )
+      await expectLatestTerminalRunResponse(
+        await refreshedLatestTerminalRunResponse,
+        version.id,
+        failedStatus.id,
+        'FAILED',
+      )
       const refreshedDrawdown = await expectRestoredResult(page)
+      await expectRestoredFailure(page)
       expect(refreshedDrawdown).toBe(initialDrawdown)
 
       await authenticatedContext.close()
@@ -167,15 +204,41 @@ async function startBacktestRun(
   api: APIRequestContext,
   strategyVersionId: string,
   commission: number,
+  period = { start: '2025-01-02', end: '2025-01-08' },
 ): Promise<BacktestRun> {
   const response = await api.post(`/strategy-versions/${strategyVersionId}/backtests`, {
     data: {
-      period: { start: '2025-01-02', end: '2025-01-08' },
+      period,
       feeModel: { commission, slippage: 0 },
     },
   })
   expect(response.ok()).toBeTruthy()
   return response.json()
+}
+
+async function waitForFailedRun(
+  api: APIRequestContext,
+  runId: string,
+): Promise<BacktestRun> {
+  let latestRun: BacktestRun | undefined
+
+  await expect
+    .poll(
+      async () => {
+        const response = await api.get(`/backtest-runs/${runId}`)
+        expect(response.ok()).toBeTruthy()
+        const run: BacktestRun = await response.json()
+        latestRun = run
+        return run.status
+      },
+      { timeout: 120_000, intervals: [500, 1_000, 2_000] },
+    )
+    .toBe('FAILED')
+
+  if (!latestRun) {
+    throw new Error('Backtest status was not returned while waiting for failure.')
+  }
+  return latestRun
 }
 
 async function waitForCompletedRun(
@@ -217,10 +280,34 @@ async function expectRestoredResult(page: Page): Promise<string> {
   return (await maxDrawdown.textContent()) ?? ''
 }
 
+async function expectRestoredFailure(page: Page) {
+  await expect(page.getByText('Backtest failed', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText(
+      'The trading calendar could not be resolved for this backtest. Please choose another date range and try again.',
+      { exact: true },
+    ),
+  ).toBeVisible()
+  await expect(page.getByText('Failure code: CALENDAR_RESOLUTION_FAILED', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText('Adjust the request if needed, then use Run backtest to try again.', { exact: true }),
+  ).toBeVisible()
+}
+
 function waitForLatestCompletedRunResponse(page: Page, strategyVersionId: string) {
   const path = `/strategy-versions/${encodeURIComponent(
     strategyVersionId,
   )}/backtest-runs/latest-completed`
+  return page.waitForResponse(
+    (response) =>
+      response.url().endsWith(path) && response.request().method() === 'GET',
+  )
+}
+
+function waitForLatestTerminalRunResponse(page: Page, strategyVersionId: string) {
+  const path = `/strategy-versions/${encodeURIComponent(
+    strategyVersionId,
+  )}/backtest-runs/latest-terminal`
   return page.waitForResponse(
     (response) =>
       response.url().endsWith(path) && response.request().method() === 'GET',
@@ -238,5 +325,20 @@ async function expectLatestCompletedRunResponse(
     id: expectedRunId,
     strategyVersionId,
     status: 'COMPLETED',
+  })
+}
+
+async function expectLatestTerminalRunResponse(
+  response: Response,
+  strategyVersionId: string,
+  expectedRunId: string,
+  expectedStatus: 'COMPLETED' | 'FAILED',
+) {
+  expect(response.status()).toBe(200)
+  const body: LatestTerminalBacktestRunResponse = await response.json()
+  expect(body.run).toMatchObject({
+    id: expectedRunId,
+    strategyVersionId,
+    status: expectedStatus,
   })
 }

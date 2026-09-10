@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   getBacktestRun,
   getLatestCompletedBacktestRun,
+  getLatestTerminalBacktestRun,
   listBacktestRuns,
   type ListBacktestRunsParams,
 } from './backtest-api'
@@ -43,6 +44,16 @@ export function useLatestCompletedBacktestRunQuery(strategyVersionId: string) {
   return useQuery({
     queryKey: backtestKeys.latestCompleted(strategyVersionId),
     queryFn: () => getLatestCompletedBacktestRun(strategyVersionId),
+    enabled: Boolean(strategyVersionId),
+    select: (response) => response.run,
+  })
+}
+
+/** Restores the last terminal run so a failure is not lost after refresh. */
+export function useLatestTerminalBacktestRunQuery(strategyVersionId: string) {
+  return useQuery({
+    queryKey: backtestKeys.latestTerminal(strategyVersionId),
+    queryFn: () => getLatestTerminalBacktestRun(strategyVersionId),
     enabled: Boolean(strategyVersionId),
     select: (response) => response.run,
   })

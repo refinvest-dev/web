@@ -16,6 +16,11 @@ export interface LatestCompletedBacktestRunResponse {
   run: BacktestRunSummary | null
 }
 
+/** `GET /strategy-versions/{versionId}/backtest-runs/latest-terminal` response. */
+export interface LatestTerminalBacktestRunResponse {
+  run: BacktestRunSummary | null
+}
+
 export function runBacktest(
   strategyVersionId: string,
   body: RunBacktestRequest,
@@ -37,6 +42,14 @@ export function getLatestCompletedBacktestRun(
 ): Promise<LatestCompletedBacktestRunResponse> {
   return apiFetch<LatestCompletedBacktestRunResponse>(
     `/strategy-versions/${encodeURIComponent(strategyVersionId)}/backtest-runs/latest-completed`,
+  )
+}
+
+export function getLatestTerminalBacktestRun(
+  strategyVersionId: string,
+): Promise<LatestTerminalBacktestRunResponse> {
+  return apiFetch<LatestTerminalBacktestRunResponse>(
+    `/strategy-versions/${encodeURIComponent(strategyVersionId)}/backtest-runs/latest-terminal`,
   )
 }
 
