@@ -119,10 +119,7 @@ function StrategyVersionDetailContent({
     strategyVersionId: string
     runId: string
   } | null>(null)
-  const latestCompletedRunQuery = useLatestCompletedBacktestRunQuery(
-    strategyId,
-    version?.id ?? '',
-  )
+  const latestCompletedRunQuery = useLatestCompletedBacktestRunQuery(version?.id ?? '')
   const acceptedRunId =
     acceptedRun?.strategyVersionId === version?.id
       ? acceptedRun?.runId ?? null

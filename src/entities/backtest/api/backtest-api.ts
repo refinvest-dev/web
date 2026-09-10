@@ -11,6 +11,11 @@ export interface ListBacktestRunsParams {
   size?: number
 }
 
+/** `GET /strategy-versions/{versionId}/backtest-runs/latest-completed` response. */
+export interface LatestCompletedBacktestRunResponse {
+  run: BacktestRunSummary | null
+}
+
 export function runBacktest(
   strategyVersionId: string,
   body: RunBacktestRequest,
@@ -24,6 +29,14 @@ export function runBacktest(
 export function getBacktestRun(runId: string): Promise<BacktestRunDetail> {
   return apiFetch<BacktestRunDetail>(
     `/backtest-runs/${encodeURIComponent(runId)}`,
+  )
+}
+
+export function getLatestCompletedBacktestRun(
+  strategyVersionId: string,
+): Promise<LatestCompletedBacktestRunResponse> {
+  return apiFetch<LatestCompletedBacktestRunResponse>(
+    `/strategy-versions/${encodeURIComponent(strategyVersionId)}/backtest-runs/latest-completed`,
   )
 }
 

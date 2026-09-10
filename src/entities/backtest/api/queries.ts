@@ -3,13 +3,13 @@
 import { useQuery } from '@tanstack/react-query'
 import {
   getBacktestRun,
+  getLatestCompletedBacktestRun,
   listBacktestRuns,
   type ListBacktestRunsParams,
 } from './backtest-api'
 import { backtestKeys } from './query-keys'
 
 const terminalStatuses = new Set(['COMPLETED', 'FAILED'])
-const latestCompletedRunListParams = { page: 0, size: 100 }
 
 export function useBacktestRunQuery(runId: string | null) {
   return useQuery({
@@ -36,25 +36,14 @@ export function useBacktestRunsQuery(
 
 /**
  * Restores the latest completed result for a strategy version after a direct
- * visit or refresh. The Core contract lists runs by strategy, newest first,
- * so the first matching completed run is the version's latest completed run.
+ * visit or refresh. Core resolves ownership and `createdAt DESC` ordering,
+ * returning null when this version has no completed run.
  */
-export function useLatestCompletedBacktestRunQuery(
-  strategyId: string,
-  strategyVersionId: string,
-) {
+export function useLatestCompletedBacktestRunQuery(strategyVersionId: string) {
   return useQuery({
-    queryKey: backtestKeys.strategyRunList(
-      strategyId,
-      latestCompletedRunListParams,
-    ),
-    queryFn: () => listBacktestRuns(strategyId, latestCompletedRunListParams),
-    enabled: Boolean(strategyId && strategyVersionId),
-    select: (runs) =>
-      runs.items.find(
-        (run) =>
-          run.strategyVersionId === strategyVersionId &&
-          run.status === 'COMPLETED',
-      ) ?? null,
+    queryKey: backtestKeys.latestCompleted(strategyVersionId),
+    queryFn: () => getLatestCompletedBacktestRun(strategyVersionId),
+    enabled: Boolean(strategyVersionId),
+    select: (response) => response.run,
   })
 }
