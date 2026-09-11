@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { Loader2, Play } from 'lucide-react'
-import { ApiError } from '@/shared/api/http'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import {
@@ -27,6 +26,7 @@ import { useAssetAvailabilityQuery } from '@/entities/asset/api/queries'
 import { useUsageQuery } from '@/entities/account/api/queries'
 import type { RunBacktestRequest } from '@/entities/backtest/model/types'
 import { useRunBacktest } from '../api/use-run-backtest'
+import { getRunBacktestErrorMessage } from '../model/get-run-backtest-error-message'
 
 interface FormErrors {
   start?: string
@@ -150,7 +150,7 @@ export function RunBacktestDialog({
     mutate({ strategyVersionId, body: result.body })
   }
 
-  const apiErrorMessage = getBacktestErrorMessage(error)
+  const apiErrorMessage = getRunBacktestErrorMessage(error)
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -309,24 +309,6 @@ export function RunBacktestDialog({
       </DialogContent>
     </Dialog>
   )
-}
-
-function getBacktestErrorMessage(error: Error | null): string | null {
-  if (!error) return null
-  if (!(error instanceof ApiError)) return 'Could not start the backtest. Please try again.'
-
-  switch (error.code) {
-    case 'BACKTEST_PERIOD_NOT_ALLOWED':
-      return 'This backtest period is not available for your current plan.'
-    case 'ASSET_NOT_ALLOWED_FOR_PLAN':
-      return 'One or more Assets in this strategy are not available for your current plan.'
-    case 'BACKTEST_MONTHLY_LIMIT_EXCEEDED':
-      return 'You have reached this month’s backtest limit for your current plan.'
-    case 'BACKTEST_CONCURRENCY_LIMIT_EXCEEDED':
-      return 'You already have the maximum number of backtests running. Try again when one finishes.'
-    default:
-      return 'Could not start the backtest. Please try again.'
-  }
 }
 
 function getOverlappingPeriod(
