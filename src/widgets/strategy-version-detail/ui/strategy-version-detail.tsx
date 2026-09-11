@@ -28,6 +28,7 @@ import {
   useLatestCompletedBacktestRunQuery,
   useLatestTerminalBacktestRunQuery,
 } from '@/entities/backtest/api/queries'
+import { RetryBacktestButton } from '@/features/run-backtest/ui/retry-backtest-button'
 import { RunBacktestDialog } from '@/features/run-backtest/ui/run-backtest-dialog'
 
 export function StrategyVersionDetail({
@@ -127,8 +128,12 @@ function StrategyVersionDetailContent({
     acceptedRun?.strategyVersionId === version?.id
       ? acceptedRun?.runId ?? null
       : null
-  const runId = acceptedRunId ?? latestCompletedRunQuery.data?.id ?? null
+  const latestCompletedRunId = latestCompletedRunQuery.data?.id ?? null
+  const runId = acceptedRunId ?? latestCompletedRunId
   const runQuery = useBacktestRunQuery(runId)
+  const previousCompletedRunQuery = useBacktestRunQuery(
+    runId === latestCompletedRunId ? null : latestCompletedRunId,
+  )
   const restoredFailedRunId =
     !acceptedRunId && latestTerminalRunQuery.data?.status === 'FAILED'
       ? latestTerminalRunQuery.data.id
@@ -136,6 +141,15 @@ function StrategyVersionDetailContent({
   const restoredFailedRunQuery = useBacktestRunQuery(restoredFailedRunId)
 
   if (!version) return null
+
+  const strategyVersionId = version.id
+
+  function handleAcceptedRun(runId: string) {
+    setAcceptedRun({
+      strategyVersionId,
+      runId,
+    })
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -154,12 +168,7 @@ function StrategyVersionDetailContent({
                 strategyVersionId={version.id}
                 primarySignalAsset={version.primarySignalAsset}
                 executionAsset={version.executionAsset}
-                onAccepted={(acceptedRunId) =>
-                  setAcceptedRun({
-                    strategyVersionId: version.id,
-                    runId: acceptedRunId,
-                  })
-                }
+                onAccepted={handleAcceptedRun}
               />
             </div>
           </div>
@@ -218,14 +227,22 @@ function StrategyVersionDetailContent({
           runId={runId}
           run={runQuery.data}
           isError={runQuery.isError}
+          onAccepted={handleAcceptedRun}
         />
       )}
+
+      {runId !== latestCompletedRunId &&
+        previousCompletedRunQuery.data?.status === 'COMPLETED' &&
+        previousCompletedRunQuery.data.result && (
+          <BacktestResultOverview result={previousCompletedRunQuery.data.result} />
+        )}
 
       {restoredFailedRunId && (
         <BacktestRunStatus
           runId={restoredFailedRunId}
           run={restoredFailedRunQuery.data}
           isError={restoredFailedRunQuery.isError}
+          onAccepted={handleAcceptedRun}
         />
       )}
 
@@ -245,10 +262,12 @@ function BacktestRunStatus({
   runId,
   run,
   isError,
+  onAccepted,
 }: {
   runId: string
   run: BacktestRunDetail | undefined
   isError: boolean
+  onAccepted: (runId: string) => void
 }) {
   if (isError) {
     return (
@@ -287,6 +306,7 @@ function BacktestRunStatus({
             <p className="text-muted-foreground">
               Adjust the request if needed, then use Run backtest to try again.
             </p>
+            <RetryBacktestButton run={run} onAccepted={onAccepted} />
           </div>
         ) : null}
         {run?.status === 'PENDING' || run?.status === 'RUNNING'

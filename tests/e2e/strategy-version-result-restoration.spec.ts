@@ -23,6 +23,14 @@ interface StrategyVersion {
 interface BacktestRun {
   id: string
   status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+  requestedPeriod: {
+    start: string
+    end: string
+  }
+  feeModel: {
+    commission: number
+    slippage: number
+  }
   errorCode?: string | null
   datasetSnapshotId?: string | null
   result?: {
@@ -72,10 +80,18 @@ test.describe('strategy version result restoration', () => {
       await waitForCompletedRun(api, previousRun.id)
       const latestRun = await startBacktestRun(api, version.id, 0.02)
       const completedRun = await waitForCompletedRun(api, latestRun.id)
-      const failedRun = await startBacktestRun(api, version.id, 0, {
+      const failedPeriod = {
         start: '2024-01-02',
         end: '2024-01-08',
-      })
+      }
+      const failedFeeModel = { commission: 0.003, slippage: 0.001 }
+      const failedRun = await startBacktestRun(
+        api,
+        version.id,
+        failedFeeModel.commission,
+        failedPeriod,
+        failedFeeModel.slippage,
+      )
       const failedStatus = await waitForFailedRun(api, failedRun.id)
 
       expect(completedRun.datasetSnapshotId).toBe('integration-e2e-v1')
@@ -119,6 +135,25 @@ test.describe('strategy version result restoration', () => {
       const initialDrawdown = await expectRestoredResult(page)
       await expectRestoredFailure(page)
 
+      const retryResponse = waitForBacktestResponse(page, version.id)
+      await page.getByRole('button', { name: 'Retry backtest' }).click()
+      const retriedRunResponse = await retryResponse
+      expect(retriedRunResponse.request().postDataJSON()).toEqual({
+        period: failedPeriod,
+        feeModel: failedFeeModel,
+      })
+      expect(retriedRunResponse.status()).toBe(202)
+      const retriedRun: BacktestRun = await retriedRunResponse.json()
+      expect(retriedRun.id).not.toBe(failedStatus.id)
+      expect(retriedRun).toMatchObject({
+        strategyVersionId: version.id,
+        status: 'PENDING',
+        requestedPeriod: failedPeriod,
+        feeModel: failedFeeModel,
+      })
+      await expectRestoredResult(page)
+      const retriedFailedStatus = await waitForFailedRun(api, retriedRun.id)
+
       const refreshedLatestRunResponse = waitForLatestCompletedRunResponse(
         page,
         version.id,
@@ -136,7 +171,7 @@ test.describe('strategy version result restoration', () => {
       await expectLatestTerminalRunResponse(
         await refreshedLatestTerminalRunResponse,
         version.id,
-        failedStatus.id,
+        retriedFailedStatus.id,
         'FAILED',
       )
       const refreshedDrawdown = await expectRestoredResult(page)
@@ -205,11 +240,12 @@ async function startBacktestRun(
   strategyVersionId: string,
   commission: number,
   period = { start: '2025-01-02', end: '2025-01-08' },
+  slippage = 0,
 ): Promise<BacktestRun> {
   const response = await api.post(`/strategy-versions/${strategyVersionId}/backtests`, {
     data: {
       period,
-      feeModel: { commission, slippage: 0 },
+      feeModel: { commission, slippage },
     },
   })
   expect(response.ok()).toBeTruthy()
@@ -311,6 +347,15 @@ function waitForLatestTerminalRunResponse(page: Page, strategyVersionId: string)
   return page.waitForResponse(
     (response) =>
       response.url().endsWith(path) && response.request().method() === 'GET',
+  )
+}
+
+function waitForBacktestResponse(page: Page, strategyVersionId: string) {
+  const path = `/strategy-versions/${encodeURIComponent(strategyVersionId)}/backtests`
+  return page.waitForResponse(
+    (response) =>
+      response.url().endsWith(path) &&
+      response.request().method() === 'POST',
   )
 }
 
