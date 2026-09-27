@@ -1,13 +1,28 @@
 /**
  * Strategy API-boundary types — mirror the `core-api` OpenAPI contract exactly.
- * No fields are added beyond the contract. Compute-domain types referenced by
- * the contract (Condition, etc.) are opaque at this boundary.
+ * No fields are added beyond the contract.
  */
 
-export type AssetSymbol = string
+export type AssetSymbol = 'QQQ' | 'SPY' | 'TQQQ' | 'SOXL' | 'BTCUSDT'
+export type MetricType = 'SIMPLE' | 'RETURN' | 'CHANGE'
+export type ComparisonOperator = 'LT' | 'GT' | 'LTE' | 'GTE'
+export type LogicalCombinator = 'AND' | 'OR'
 
-/** `compute-api` Condition — opaque to the web app. */
-export type StrategyCondition = unknown
+export interface MetricReference {
+  asset: AssetSymbol
+  metric: MetricType
+  /** SIMPLE is serialized as null; RETURN and CHANGE require a positive integer. */
+  window: number | null
+}
+
+/** `compute-api.yaml#/components/schemas/Condition`. */
+export interface StrategyCondition {
+  operator: ComparisonOperator
+  /** The first condition is null; every following condition uses AND or OR. */
+  logicalCombinator?: LogicalCombinator | null
+  operandA: MetricReference
+  operandB: number | MetricReference
+}
 
 export interface StrategySummary {
   id: string
